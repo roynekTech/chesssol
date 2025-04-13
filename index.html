@@ -32,6 +32,7 @@
       cursor: pointer;
       user-select: none;
       transition: background 0.2s;
+      color: #0e0e0e
     }
     .white { background-color: #f0d9b5; }
     .black { background-color: #b58863; }
@@ -64,13 +65,13 @@
         king: "♔", queen: "♕", rook: "♖", bishop: "♗", knight: "♘", pawn: "♙"
       },
       black: {
-        king: "♚", queen: "♛", rook: "♜", bishop: "♝", knight: "♞", pawn: "♟️"
+        king: "♚", queen: "♛", rook: "♜", bishop: "♝", knight: "♞", pawn: "♟"
       }
     };
 
     const pieceToFEN = {
       "♔": "K", "♕": "Q", "♖": "R", "♗": "B", "♘": "N", "♙": "P",
-      "♚": "k", "♛": "q", "♜": "r", "♝": "b", "♞": "n", "♟️": "p"
+      "♚": "k", "♛": "q", "♜": "r", "♝": "b", "♞": "n", "♟": "p"
     };
     // const pieceToFEN = {
     //     "🨀": "K", "🨁": "Q", "🨂": "R", "🨃": "B", "🨄": "N", "🨅": "P",  // White
@@ -81,6 +82,25 @@
     let selectedCell = null;
     let currentTurn = "white";
     const gameId = "game_001";
+
+    // Read URL parameters
+    const params = new URLSearchParams(window.location.search);
+    const serverParam = params.get("server") || "remote"; // default to remote
+    const networkParam = params.get("network") || "mainnet"; // default to mainnet
+
+    // Global config variables
+    const config = {
+      server: serverParam,
+      network: networkParam,
+      get bestMoveUrl() {
+        return this.server === "localnet"
+          ? "http://localhost:3000/chesssol/backend/get_best_move"
+          : "https://roynek.com/chesssol/backend/get_best_move";
+      }
+    };
+
+    console.log("Server:", config.server, "Network:", config.network);
+
 
     function createInitialBoard() {
       board = Array.from({ length: 8 }, () => Array(8).fill(""));
@@ -170,15 +190,44 @@
       return fen;
     }
 
+    
+
+    // function getBestMove() {
+    //   const fen = generateFEN();
+    //   const status = document.getElementById("status");
+    //   status.textContent = "Thinking... 🤔";
+
+    //   fetch("http://localhost:3000/chesssol/backend/get_best_move", {
+    //     method: "POST",
+    //     headers: { "Content-Type": "application/json" },
+    //     body: JSON.stringify({ game_id: gameId, fen })
+    //   })
+    //   .then(res => res.json())
+    //   .then(data => {
+    //     if (data.best_move) {
+    //       applyMoveFromNotation(data.best_move);
+    //       currentTurn = currentTurn === "white" ? "black" : "white";
+    //       drawBoard();
+    //       status.textContent = "Your move!";
+    //     } else {
+    //       status.textContent = "No move received.";
+    //     }
+    //   })
+    //   .catch(err => {
+    //     status.textContent = "Error contacting engine.";
+    //     console.error(err);
+    //   });
+    // }
+
     function getBestMove() {
       const fen = generateFEN();
       const status = document.getElementById("status");
       status.textContent = "Thinking... 🤔";
 
-      fetch("http://localhost:3000/chesssol/backend/get_best_move", {
+      fetch(config.bestMoveUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ game_id: gameId, fen })
+        body: JSON.stringify({ game_id: gameId, fen, network: config.network })
       })
       .then(res => res.json())
       .then(data => {
@@ -197,6 +246,7 @@
       });
     }
 
+    
     function applyMoveFromNotation(move) {
       const colMap = { a:0, b:1, c:2, d:3, e:4, f:5, g:6, h:7 };
       const fromCol = colMap[move[0]];
@@ -211,6 +261,7 @@
 
     createInitialBoard();
     drawBoard();
+
   });
 
 </script>
