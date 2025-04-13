@@ -93,7 +93,7 @@
       server: serverParam,
       network: networkParam,
       get bestMoveUrl() {
-        return this.server === "localnet"
+        return (this.server === "localnet" || this.server === "localhost")
           ? "http://localhost:3000/chesssol/backend/get_best_move"
           : "https://roynek.com/chesssol/backend/get_best_move";
       }
@@ -246,7 +246,7 @@
       });
     }
 
-    
+
     function applyMoveFromNotation(move) {
       const colMap = { a:0, b:1, c:2, d:3, e:4, f:5, g:6, h:7 };
       const fromCol = colMap[move[0]];

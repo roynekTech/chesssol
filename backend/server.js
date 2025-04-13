@@ -6,7 +6,10 @@ const app = express();
 const port = 3000;
 
 // Absolute path to Stockfish
-const stockfishPath = "/var/www/html/chesssol/backend/chess-engine/stockfish_16/stockfish-ubuntu-x86-64-modern";
+const stockfishPath = "chess-engine/stockfish_16/stockfish-ubuntu-x86-64-modern";
+
+let MAIN_DIR = "/chesssol/backend";
+
 
 // Custom CORS middleware
 app.use((req, res, next) => {
@@ -95,6 +98,11 @@ function getBestMove(fen, callback) {
         }
     });
 }
+
+// Serve "Hello World" at /sonic_universe/client/sonic_planet/api/
+app.get(MAIN_DIR+'/', (req, res) => {
+    res.send('Entrace Point - Hello world');
+});
 
 app.post('/chesssol/backend/get_best_move', (req, res) => {
     const { fen, game_id } = req.body;
