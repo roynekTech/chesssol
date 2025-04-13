@@ -2,57 +2,60 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Emoji Chess with FEN</title>
+  <title>Modern Emoji Chess</title>
   <style>
     body {
-      background-color: #222;
-      color: white;
+      background: #1e1e2f;
+      color: #eee;
       display: flex;
       flex-direction: column;
       align-items: center;
+      font-family: 'Segoe UI', sans-serif;
       padding: 20px;
-      font-family: sans-serif;
+    }
+    h1 {
+      margin-bottom: 10px;
     }
     .board {
       display: grid;
-      grid-template-columns: repeat(8, 60px);
-      grid-template-rows: repeat(8, 60px);
-      border: 2px solid #fff;
+      grid-template-columns: repeat(8, 70px);
+      grid-template-rows: repeat(8, 70px);
+      box-shadow: 0 0 15px rgba(0, 0, 0, 0.7);
     }
     .cell {
-      width: 60px;
-      height: 60px;
+      width: 70px;
+      height: 70px;
       display: flex;
       justify-content: center;
       align-items: center;
-      font-size: 32px;
+      font-size: 38px;
       cursor: pointer;
       user-select: none;
+      transition: background 0.2s;
     }
-    .white {
-      background-color: #eee;
-      color: black;
-    }
-    .black {
-      background-color: #666;
-      color: white;
-    }
-    .selected {
-      outline: 3px solid yellow;
-    }
+    .white { background-color: #f0d9b5; }
+    .black { background-color: #b58863; }
+    .selected { outline: 3px solid yellow; }
     #fenOutput {
-      margin-top: 20px;
-      padding: 10px;
-      background: #444;
-      border-radius: 6px;
+      margin-top: 15px;
       font-family: monospace;
+      font-size: 14px;
+      background: #333;
+      padding: 10px;
+      border-radius: 5px;
+    }
+    #status {
+      margin-top: 10px;
+      color: #9cf;
     }
   </style>
 </head>
 <body>
 
+<h1>♟️ Emoji Chess vs Stockfish</h1>
 <div class="board" id="chessBoard"></div>
 <div id="fenOutput">FEN will appear here...</div>
+<div id="status"></div>
 
 <script>
   document.addEventListener("DOMContentLoaded", () => {
@@ -69,35 +72,24 @@
       "♔": "K", "♕": "Q", "♖": "R", "♗": "B", "♘": "N", "♙": "P",
       "♚": "k", "♛": "q", "♜": "r", "♝": "b", "♞": "n", "♟️": "p"
     };
+    // const pieceToFEN = {
+    //     "🨀": "K", "🨁": "Q", "🨂": "R", "🨃": "B", "🨄": "N", "🨅": "P",  // White
+    //     "🨆": "k", "🨇": "q", "🨈": "r", "🨉": "b", "🨊": "n", "🨋": "p"   // Black
+    // };
 
-    const board = [];
+    let board = [];
     let selectedCell = null;
     let currentTurn = "white";
+    const gameId = "game_001";
 
     function createInitialBoard() {
-      for (let row = 0; row < 8; row++) {
-        board[row] = [];
-        for (let col = 0; col < 8; col++) {
-          board[row][col] = "";
-        }
-      }
-
-      for (let col = 0; col < 8; col++) {
-        board[1][col] = pieces.black.pawn;
-        board[6][col] = pieces.white.pawn;
-      }
-
-      board[0] = [
-        pieces.black.rook, pieces.black.knight, pieces.black.bishop,
-        pieces.black.queen, pieces.black.king,
-        pieces.black.bishop, pieces.black.knight, pieces.black.rook
-      ];
-
-      board[7] = [
-        pieces.white.rook, pieces.white.knight, pieces.white.bishop,
-        pieces.white.queen, pieces.white.king,
-        pieces.white.bishop, pieces.white.knight, pieces.white.rook
-      ];
+      board = Array.from({ length: 8 }, () => Array(8).fill(""));
+      const backRowWhite = [pieces.white.rook, pieces.white.knight, pieces.white.bishop, pieces.white.queen, pieces.white.king, pieces.white.bishop, pieces.white.knight, pieces.white.rook];
+      const backRowBlack = [pieces.black.rook, pieces.black.knight, pieces.black.bishop, pieces.black.queen, pieces.black.king, pieces.black.bishop, pieces.black.knight, pieces.black.rook];
+      board[0] = backRowBlack;
+      board[1] = Array(8).fill(pieces.black.pawn);
+      board[6] = Array(8).fill(pieces.white.pawn);
+      board[7] = backRowWhite;
     }
 
     function drawBoard() {
@@ -124,21 +116,25 @@
     function handleCellClick(cell) {
       const row = parseInt(cell.dataset.row);
       const col = parseInt(cell.dataset.col);
+      const piece = board[row][col];
 
       if (selectedCell) {
         const fromRow = parseInt(selectedCell.dataset.row);
         const fromCol = parseInt(selectedCell.dataset.col);
-        const piece = board[fromRow][fromCol];
+        const selectedPiece = board[fromRow][fromCol];
 
-        if (piece) {
-          board[row][col] = piece;
-          board[fromRow][fromCol] = "";
-          selectedCell.classList.remove("selected");
-          selectedCell = null;
-          currentTurn = currentTurn === "white" ? "black" : "white";
-          drawBoard();
-        }
-      } else if (board[row][col] !== "") {
+        // Move piece
+        board[row][col] = selectedPiece;
+        board[fromRow][fromCol] = "";
+        selectedCell.classList.remove("selected");
+        selectedCell = null;
+        currentTurn = currentTurn === "white" ? "black" : "white";
+        drawBoard();
+        updateFENDisplay();
+
+        // Ask backend for best move
+        getBestMove();
+      } else if (piece !== "") {
         selectedCell = cell;
         selectedCell.classList.add("selected");
       }
@@ -151,12 +147,11 @@
 
     function generateFEN() {
       let fen = "";
-
       for (let row = 0; row < 8; row++) {
         let emptyCount = 0;
         for (let col = 0; col < 8; col++) {
           const piece = board[row][col];
-          if (piece === "") {
+          if (!piece) {
             emptyCount++;
           } else {
             if (emptyCount > 0) {
@@ -166,26 +161,58 @@
             fen += pieceToFEN[piece] || "?";
           }
         }
-        if (emptyCount > 0) {
-          fen += emptyCount;
-        }
-        if (row < 7) {
-          fen += "/";
-        }
+        if (emptyCount > 0) fen += emptyCount;
+        if (row < 7) fen += "/";
       }
 
-      // Add current turn only
       fen += " " + (currentTurn === "white" ? "w" : "b");
-
-      // Optional: No castling, en passant, halfmove clock, fullmove number
-      fen += " - - 0 1";
-
+      fen += " - - 0 1"; // No castling/en-passant tracking for now
       return fen;
+    }
+
+    function getBestMove() {
+      const fen = generateFEN();
+      const status = document.getElementById("status");
+      status.textContent = "Thinking... 🤔";
+
+      fetch("http://localhost:3000/chesssol/backend/get_best_move", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ game_id: gameId, fen })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.best_move) {
+          applyMoveFromNotation(data.best_move);
+          currentTurn = currentTurn === "white" ? "black" : "white";
+          drawBoard();
+          status.textContent = "Your move!";
+        } else {
+          status.textContent = "No move received.";
+        }
+      })
+      .catch(err => {
+        status.textContent = "Error contacting engine.";
+        console.error(err);
+      });
+    }
+
+    function applyMoveFromNotation(move) {
+      const colMap = { a:0, b:1, c:2, d:3, e:4, f:5, g:6, h:7 };
+      const fromCol = colMap[move[0]];
+      const fromRow = 8 - parseInt(move[1]);
+      const toCol = colMap[move[2]];
+      const toRow = 8 - parseInt(move[3]);
+
+      const piece = board[fromRow][fromCol];
+      board[toRow][toCol] = piece;
+      board[fromRow][fromCol] = "";
     }
 
     createInitialBoard();
     drawBoard();
   });
+
 </script>
 
 </body>
