@@ -1,4 +1,6 @@
 node_modules/
+chess-engine/*
+backend/chess-engine/*
 .env
 *keypair.json
 backend/chess-engine/
