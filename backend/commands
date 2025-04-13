@@ -1,0 +1,15 @@
+cd ~/public_html/chesssol/backend
+
+# Download source zip
+wget https://github.com/official-stockfish/Stockfish/archive/refs/tags/sf_16.zip
+
+# Unzip it
+unzip sf_16.zip
+
+# Move into the Stockfish directory
+cd Stockfish-sf_16/src
+
+make build ARCH=x86-64
+# g++ -O3 -fno-exceptions -fno-rtti -std=c++17 *.cpp -o stockfish
+
+./stockfish

@@ -6,7 +6,8 @@ const app = express();
 const port = 3000;
 
 // Absolute path to Stockfish
-const stockfishPath = "chess-engine/stockfish_16/stockfish-ubuntu-x86-64-modern";
+// const stockfishPath = "chess-engine/stockfish_16/stockfish-ubuntu-x86-64-modern";
+const stockfishPath = "chesssol/backend/Stockfish-sf_16/src/stockfish";
 
 let MAIN_DIR = "/chesssol/backend";
 
