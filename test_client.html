@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Multiplayer Emoji Chess</title>
+  <style>
+    body {
+      background: #1e1e2f;
+      color: #eee;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-family: 'Segoe UI', sans-serif;
+      padding: 20px;
+    }
+    h1 {
+      margin-bottom: 10px;
+    }
+    .game-controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .board {
+      display: grid;
+      grid-template-columns: repeat(8, 70px);
+      grid-template-rows: repeat(8, 70px);
+      box-shadow: 0 0 15px rgba(0, 0, 0, 0.7);
+      margin-bottom: 20px;
+    }
+    .cell {
+      width: 70px;
+      height: 70px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 38px;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.2s;
+      color: #0e0e0e;
+    }
+    .white { background-color: #f0d9b5; }
+    .black { background-color: #b58863; }
+    .selected { outline: 3px solid yellow; }
+    .legal-move { 
+      background-color: rgba(0, 255, 0, 0.3);
+      cursor: pointer;
+    }
+    #gameInfo {
+      margin-bottom: 15px;
+      padding: 10px;
+      background: #333;
+      border-radius: 5px;
+      text-align: center;
+    }
+    #fenOutput {
+      font-family: monospace;
+      font-size: 14px;
+      background: #333;
+      padding: 10px;
+      border-radius: 5px;
+      margin-bottom: 10px;
+      word-break: break-all;
+    }
+    #status {
+      margin-top: 10px;
+      color: #9cf;
+      min-height: 24px;
+    }
+    #chat {
+      width: 100%;
+      max-width: 500px;
+      margin-top: 20px;
+    }
+    #chatMessages {
+      height: 150px;
+      overflow-y: auto;
+      background: #333;
+      padding: 10px;
+      border-radius: 5px;
+      margin-bottom: 10px;
+    }
+    #chatInput {
+      width: 100%;
+      padding: 8px;
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+
+<h1>♟️ Multiplayer Emoji Chess</h1>
+
+<div class="game-controls">
+  <button id="createGameBtn">Create New Game</button>
+  <div>
+    <input type="text" id="gameIdInput" placeholder="Enter Game ID">
+    <button id="joinGameBtn">Join Game</button>
+  </div>
+</div>
+
+<div id="gameInfo">Not connected to a game</div>
+<div class="board" id="chessBoard"></div>
+<div id="fenOutput">FEN will appear here...</div>
+<div id="status">Connect to a game to start playing</div>
+
+<div id="chat">
+  <div id="chatMessages"></div>
+  <input type="text" id="chatInput" placeholder="Type a message...">
+  <button id="sendChatBtn">Send</button>
+</div>
+
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    // Game state
+    const pieces = {
+      white: {
+        king: "♔", queen: "♕", rook: "♖", bishop: "♗", knight: "♘", pawn: "♙"
+      },
+      black: {
+        king: "♚", queen: "♛", rook: "♜", bishop: "♝", knight: "♞", pawn: "♟"
+      }
+    };
+
+    const pieceToFEN = {
+      "♔": "K", "♕": "Q", "♖": "R", "♗": "B", "♘": "N", "♙": "P",
+      "♚": "k", "♛": "q", "♜": "r", "♝": "b", "♞": "n", "♟": "p"
+    };
+
+    let board = Array.from({ length: 8 }, () => Array(8).fill(""));
+    let selectedCell = null;
+    let legalMoves = [];
+    let currentGameId = null;
+    let playerColor = null;
+    let currentTurn = "white";
+    let socket = null;
+    let playerId = `player_${Math.random().toString(36).substr(2, 8)}`;
+
+    // DOM elements
+    const chessBoard = document.getElementById("chessBoard");
+    const fenOutput = document.getElementById("fenOutput");
+    const statusEl = document.getElementById("status");
+    const gameInfoEl = document.getElementById("gameInfo");
+    const createGameBtn = document.getElementById("createGameBtn");
+    const joinGameBtn = document.getElementById("joinGameBtn");
+    const gameIdInput = document.getElementById("gameIdInput");
+    const chatMessages = document.getElementById("chatMessages");
+    const chatInput = document.getElementById("chatInput");
+    const sendChatBtn = document.getElementById("sendChatBtn");
+
+    // Initialize WebSocket connection
+    function connectWebSocket() {
+      wsUrl = 'ws://localhost:8080/chesssol/backend/ws';
+      socket = new WebSocket(wsUrl);
+
+      socket.addEventListener('open', () => {
+        updateStatus('Connected to game server');
+      });
+
+      socket.addEventListener('message', (event) => {
+        const data = JSON.parse(event.data);
+        handleServerMessage(data);
+      });
+
+      socket.addEventListener('close', () => {
+        updateStatus('Disconnected from server');
+      });
+
+      socket.addEventListener('error', (error) => {
+        updateStatus('WebSocket error: ' + error.message);
+      });
+    }
+
+    // Handle server messages
+    function handleServerMessage(data) {
+      switch(data.type) {
+        case 'created':
+          currentGameId = data.gameId;
+          playerColor = 'white';
+          updateGameInfo(`Game created (ID: ${data.gameId}) - You are White`);
+          loadBoardFromFEN(data.fen);
+          break;
+
+        case 'joined':
+          playerColor = data.color;
+          currentGameId = data.gameId;
+          updateGameInfo(`Joined game ${data.gameId} - You are ${playerColor === 'w' ? 'White' : 'Black'}`);
+          loadBoardFromFEN(data.fen);
+          break;
+
+        case 'gameState':
+          loadBoardFromFEN(data.fen);
+          updateStatus(data.status === 'waiting' ? 'Waiting for opponent...' : 
+                      `Your turn (${playerColor === data.fen.split(' ')[1] ? 'YES' : 'NO'})`);
+          break;
+
+        case 'moveResult':
+          if (data.valid) {
+            loadBoardFromFEN(data.fen);
+          } else {
+            updateStatus('Invalid move: ' + data.message);
+            // Reset selection if move was invalid
+            selectedCell = null;
+            drawBoard();
+          }
+          break;
+
+        case 'chat':
+          addChatMessage(data.sender, data.message);
+          break;
+
+        case 'error':
+          updateStatus('Error: ' + data.message);
+          break;
+
+        default:
+          console.log('Unknown message:', data);
+      }
+    }
+
+    // Board functions
+    function loadBoardFromFEN(fen) {
+      const fenParts = fen.split(' ');
+      const fenBoard = fenParts[0];
+      currentTurn = fenParts[1] === 'w' ? 'white' : 'black';
+      
+      let row = 0, col = 0;
+      for (const char of fenBoard) {
+        if (char === '/') {
+          row++;
+          col = 0;
+        } else if (/\d/.test(char)) {
+          const emptySquares = parseInt(char);
+          for (let i = 0; i < emptySquares; i++) {
+            board[row][col] = '';
+            col++;
+          }
+        } else {
+          board[row][col] = getPieceFromFEN(char);
+          col++;
+        }
+      }
+      
+      updateFENDisplay();
+      drawBoard();
+    }
+
+    function getPieceFromFEN(fenChar) {
+      for (const [emoji, char] of Object.entries(pieceToFEN)) {
+        if (char === fenChar) return emoji;
+      }
+      return '';
+    }
+
+    function drawBoard() {
+      chessBoard.innerHTML = '';
+      
+      for (let row = 0; row < 8; row++) {
+        for (let col = 0; col < 8; col++) {
+          const cell = document.createElement('div');
+          const isWhite = (row + col) % 2 === 0;
+          cell.className = `cell ${isWhite ? 'white' : 'black'}`;
+          cell.textContent = board[row][col];
+          cell.dataset.row = row;
+          cell.dataset.col = col;
+          
+          // Highlight selected cell and legal moves
+          if (selectedCell && 
+              parseInt(selectedCell.dataset.row) === row && 
+              parseInt(selectedCell.dataset.col) === col) {
+            cell.classList.add('selected');
+          }
+          
+          // Add click handler
+          cell.addEventListener('click', () => handleCellClick(row, col));
+          
+          chessBoard.appendChild(cell);
+        }
+      }
+    }
+
+ /*    function handleCellClick(row, col) {
+      // If not your turn, ignore
+      if ((currentTurn === 'white' && playerColor !== 'w') || 
+          (currentTurn === 'black' && playerColor !== 'b')) {
+        return;
+      }
+      
+      const piece = board[row][col];
+      
+      // If no piece selected and clicked on empty square, ignore
+      if (!selectedCell && !piece) return;
+      
+      // If no piece selected and clicked on opponent's piece, ignore
+      if (!selectedCell && ((currentTurn === 'white' && piece === piece.toLowerCase()) || 
+                           (currentTurn === 'black' && piece === piece.toUpperCase()))) {
+        return;
+      }
+      
+      // If selecting a piece
+      if (!selectedCell && piece) {
+        selectedCell = { row, col };
+        // TODO: Calculate legal moves here
+        drawBoard();
+        return;
+      }
+      
+      // If moving a piece
+      if (selectedCell) {
+        const fromRow = selectedCell.row;
+        const fromCol = selectedCell.col;
+
+        console.log("we came up here...");
+        
+        // Send move to server
+        const move = {
+          type: 'move',
+          gameId: currentGameId,
+          from: { row: fromRow, col: fromCol },
+          to: { row, col },
+          client: playerId
+        };
+        
+        socket.send(JSON.stringify(move));
+        selectedCell = null;
+        drawBoard();
+      }
+    }
+ */
+    function updateFENDisplay() {
+      fenOutput.textContent = generateFEN();
+    }
+
+    function generateFEN() {
+      let fen = '';
+      for (let row = 0; row < 8; row++) {
+        let emptyCount = 0;
+        for (let col = 0; col < 8; col++) {
+          const piece = board[row][col];
+          if (!piece) {
+            emptyCount++;
+          } else {
+            if (emptyCount > 0) {
+              fen += emptyCount;
+              emptyCount = 0;
+            }
+            fen += pieceToFEN[piece] || '?';
+          }
+        }
+        if (emptyCount > 0) fen += emptyCount;
+        if (row < 7) fen += '/';
+      }
+      
+      fen += ` ${currentTurn === 'white' ? 'w' : 'b'}`;
+      fen += ' KQkq - 0 1'; // Simplified for demo
+      return fen;
+    }
+
+    
+
+
+ function handleCellClick(row, col) {
+  // If not your turn, ignore
+  if ((currentTurn === 'white' && playerColor !== 'w') || 
+      (currentTurn === 'black' && playerColor !== 'b')) {
+    updateStatus("It's not your turn!");
+    return;
+  }
+
+  const piece = board[row][col];
+  
+  // If no piece selected yet
+  if (!selectedCell) {
+    // Ignore if clicking empty square or opponent's piece
+    if (!piece || 
+        (currentTurn === 'white' && piece !== piece.toUpperCase()) || 
+        (currentTurn === 'black' && piece !== piece.toLowerCase())) {
+      return;
+    }
+    
+    // Select the piece
+    selectedCell = { row, col };
+    // TODO: Calculate and highlight legal moves here
+    drawBoard();
+    return;
+  }
+  
+  // If we have a selected piece and are making a move
+  const fromRow = selectedCell.row;
+  const fromCol = selectedCell.col;
+  
+  // Create a temporary board to generate the new FEN
+  const tempBoard = JSON.parse(JSON.stringify(board));
+  tempBoard[row][col] = tempBoard[fromRow][fromCol]; // Move piece
+  tempBoard[fromRow][fromCol] = ""; // Clear original position
+  
+  // Generate the new FEN
+  const newFEN = generateFENFromBoard(tempBoard, currentTurn === 'white' ? 'b' : 'w');
+  
+  // Send move to server
+  socket.send(JSON.stringify({
+    type: 'move',
+    gameId: currentGameId,
+    fen: newFEN,
+    client: playerId,
+    clientTime: Date.now()
+  }));
+  
+  // Clear selection
+  selectedCell = null;
+  drawBoard();
+}
+
+// Helper function to generate FEN from board state
+function generateFENFromBoard(boardState, nextTurn) {
+  let fen = '';
+  
+  // Piece placement
+  for (let row = 0; row < 8; row++) {
+    let emptyCount = 0;
+    for (let col = 0; col < 8; col++) {
+      const piece = boardState[row][col];
+      if (!piece) {
+        emptyCount++;
+      } else {
+        if (emptyCount > 0) {
+          fen += emptyCount;
+          emptyCount = 0;
+        }
+        fen += pieceToFEN[piece] || '?';
+      }
+    }
+    if (emptyCount > 0) fen += emptyCount;
+    if (row < 7) fen += '/';
+  }
+  
+  // Add turn, castling, etc. (simplified)
+  fen += ` ${nextTurn} KQkq - 0 1`;
+  return fen;
+}
+
+
+
+    // UI functions
+    function updateStatus(message) {
+      statusEl.textContent = message;
+    }
+
+    function updateGameInfo(message) {
+      gameInfoEl.textContent = message;
+    }
+
+    function addChatMessage(sender, message) {
+      const messageEl = document.createElement('div');
+      messageEl.innerHTML = `<strong>${sender}:</strong> ${message}`;
+      chatMessages.appendChild(messageEl);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    // Event listeners
+    createGameBtn.addEventListener('click', () => {
+      socket.send(JSON.stringify({
+        type: 'create',
+        client: playerId
+      }));
+    });
+
+    joinGameBtn.addEventListener('click', () => {
+      const gameId = gameIdInput.value.trim();
+      if (!gameId) return;
+      
+      socket.send(JSON.stringify({
+        type: 'join',
+        gameId,
+        client: playerId
+      }));
+    });
+
+    sendChatBtn.addEventListener('click', () => {
+      const message = chatInput.value.trim();
+      if (!message || !currentGameId) return;
+      
+      socket.send(JSON.stringify({
+        type: 'chat',
+        gameId: currentGameId,
+        sender: playerId,
+        message
+      }));
+      
+      chatInput.value = '';
+    });
+
+    chatInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        sendChatBtn.click();
+      }
+    });
+
+    // Initialize
+    connectWebSocket();
+    loadBoardFromFEN('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
+  });
+</script>
+</body>
+</html>

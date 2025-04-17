@@ -1,54 +1,55 @@
-const express = require('express');
-const cors = require('cors'); // Add this line
-const { spawn } = require('child_process');
-const path = require('path');
-// const app = express();
-const port = 8080; //3000;
-
-// game_setup.js 
 const WebSocket = require('ws');
-const http = require('http');
-// const express = require('express');
-// const cors = require('cors');
-const { Chess } = require('chess.js');
-const bodyParser = require('body-parser');
-const gameHandlers = require('./gameHandlers');
+const { v4: uuidv4 } = require('uuid');
 
+const express = require('express');
+
+// --- HTTP Server Setup ---
 const app = express();
-app.use(bodyParser.json());
-app.use(cors());
-let MAIN_DIR = "/chesssol/backend";
+app.use(express.json()); // Parse JSON bodies
 
-app.get(MAIN_DIR+'/', (req, res) => {
-  res.send('Entrace Point - Hello world');
+// Example HTTP endpoint to create a game via REST
+app.post('/api/games', (req, res) => {
+    const gameId = uuidv4();
+    const initialFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+
+    games.set(gameId, {
+        players: new Map(),
+        fen: initialFen,
+        status: 'waiting',
+        createdAt: Date.now()
+    });
+
+    res.json({
+        gameId,
+        fen: initialFen,
+        status: 'waiting'
+    });
 });
 
-// Game endpoints
-app.post(MAIN_DIR+'/games', gameHandlers.createGame);
-app.post(MAIN_DIR+'/games/:gameId/join', gameHandlers.joinGame);
-app.put('/games/:gameId/state', gameHandlers.updateGameState);
+// Example HTTP endpoint to fetch game state
+app.get('/api/games/:gameId', (req, res) => {
+    const game = games.get(req.params.gameId);
+    if (!game) {
+        return res.status(404).json({ error: 'Game not found' });
+    }
 
-// Game data endpoints
-app.post(MAIN_DIR+'/games/:gameId/data', gameHandlers.updateGameData); // Update game state
-app.get(MAIN_DIR+'/games/:gameId/data', gameHandlers.getLatestGameData); // Get latest state
-app.post(MAIN_DIR+'/games/legal-moves', gameHandlers.getLegalMoves); // Get legal moves
-
-
-app.post(MAIN_DIR+'/get_best_move', gameHandlers.getBestMoves); // Get legal moves
-
-
+    res.json({
+        gameId: req.params.gameId,
+        fen: game.fen,
+        status: game.status,
+        players: Array.from(game.players.keys())
+    });
+});
 
 // Start HTTP server
-const httpServer = app.listen(port, () => {
-    console.log('HTTP server running on http://localhost:' + port);
+const httpServer = app.listen(8080, () => {
+    console.log('HTTP server running on http://localhost:8080');
 });
+
 
 
 // const wss = new WebSocket.Server({ port: 8080 });
-const wss = new WebSocket.Server({ 
-    server: httpServer ,
-    path: MAIN_DIR + '/ws'
-});
+const wss = new WebSocket.Server({ server: httpServer });
 const games = new Map(); // Stores active games
 
 wss.on('connection', (ws) => {
@@ -303,138 +304,4 @@ function handleJoin(ws, gameId) {
     console.log(`Game ${gameId} ended by resignation`);
   }
 
-console.log('Chess WebSocket server running on ws://localhost:'+port);
-
-
-/* // Absolute path to Stockfish
-// const stockfishPath = "chess-engine/stockfish_16/stockfish-ubuntu-x86-64-modern";
-const stockfishPath = "chess-engine/Stockfish-sf_16/src/stockfish";
-
-let MAIN_DIR = "/chesssol/backend";
-
-
-// Custom CORS middleware
-app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', 'http://localhost');
-    res.header('Access-Control-Allow-Methods', 'GET, POST');
-    res.header('Access-Control-Allow-Headers', 'Content-Type');
-    
-    // Handle preflight requests
-    if (req.method === 'OPTIONS') {
-      return res.sendStatus(200);
-    }
-    next();
-  });
-
-
-app.use(express.json());
-
-function getBestMove(fen, callback, stockfishPath) {
-    console.log(`Attempting to launch Stockfish from: ${stockfishPath}`);
-    
-    const stockfish = spawn(stockfishPath);
-    let bestMove = null;
-    let isReady = false;
-    let timeout;
-
-    // Set a timeout for the entire operation
-    timeout = setTimeout(() => {
-        if (!bestMove) {
-            stockfish.kill();
-            callback(new Error('Stockfish calculation timed out (10 seconds)'));
-        }
-    }, 10000);
-
-    stockfish.on('error', (err) => {
-        clearTimeout(timeout);
-        console.error('Stockfish spawn error:', err);
-        callback(new Error(`Failed to launch Stockfish: ${err.message}`));
-    });
-
-    stockfish.stdin.write('uci\n');
-    stockfish.stdin.write(`setoption name Skill Level value 20\n`);
-    stockfish.stdin.write('isready\n');
-
-    let buffer = '';
-    stockfish.stdout.on('data', (data) => {
-        buffer += data.toString();
-        const lines = buffer.split('\n');
-        buffer = lines.pop(); // Save incomplete line for next chunk
-
-        for (let line of lines) {
-            line = line.trim();
-            if (!line) continue;
-
-            console.log('Stockfish:', line); // Debug logging
-            
-            if (line.includes('readyok') && !isReady) {
-                isReady = true;
-                console.log(`Setting position with FEN: ${fen}`);
-                stockfish.stdin.write(`position fen ${fen}\n`);
-                stockfish.stdin.write(`go depth 18\n`);
-            }
-            
-            if (line.startsWith('bestmove')) {
-                const match = line.match(/bestmove (\w+)/);
-                if (match?.[1]) {
-                    clearTimeout(timeout);
-                    bestMove = match[1];
-                    console.log(`Found best move: ${bestMove}`);
-                    stockfish.stdin.write('quit\n');
-                    return callback(null, bestMove);
-                }
-            }
-        }
-    });
-
-    stockfish.stderr.on('data', (data) => {
-        console.error('Stockfish stderr:', data.toString());
-    });
-
-    stockfish.on('close', (code) => {
-        clearTimeout(timeout);
-        if (!bestMove) {
-            console.error(`Stockfish exited with code ${code} before returning best move`);
-            console.error(`Last buffer content: ${buffer}`);
-            callback(new Error(`Stockfish process failed (code ${code})`));
-        }
-    });
-}
-
-// Serve "Hello World" at /sonic_universe/client/sonic_planet/api/
-
-
-app.post(MAIN_DIR+'/get_best_move', (req, res) => {
-    const { fen, game_id, level } = req.body;
-    
-    if (!fen || !game_id) {
-        return res.status(400).json({ error: "Missing fen or game_id" });
-    }
-
-    // Validate FEN format
-    if (!/^([rnbqkpRNBQKP1-8]+\/){7}[rnbqkpRNBQKP1-8]+ [bw] (-|K?Q?k?q?) (-|[a-h][36]) \d+ \d+$/.test(fen)) {
-        return res.status(400).json({ error: "Invalid FEN format" });
-    }
-
-    getBestMove(fen, (err, move) => {
-        if (err) {
-            console.log('Problem FEN:', fen);
-            console.error('Error in getBestMove:', err);
-            return res.status(500).json({ 
-                error: 'Engine error',
-                details: err.message,
-                fen: fen
-            });
-        }
-        res.json({ game_id, fen, best_move: move });
-    }, stockfishPath);
-});
-
-app.listen(port, () => {
-    console.log(`Server running on port ${port}`);
-    console.log(`Stockfish path configured as: ${stockfishPath}`);
-    // Verify Stockfish is executable
-    require('fs').access(stockfishPath, require('fs').constants.X_OK, (err) => {
-        console.log(err ? 'Stockfish is NOT executable' : 'Stockfish is executable');
-    });
-}); */
+console.log('Chess WebSocket server running on ws://localhost:8080');

@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Modern Emoji Chess</title>
+  <style>
+    body {
+      background: #1e1e2f;
+      color: #eee;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-family: 'Segoe UI', sans-serif;
+      padding: 20px;
+    }
+    h1 {
+      margin-bottom: 10px;
+    }
+    .board {
+      display: grid;
+      grid-template-columns: repeat(8, 70px);
+      grid-template-rows: repeat(8, 70px);
+      box-shadow: 0 0 15px rgba(0, 0, 0, 0.7);
+      margin-bottom: 20px;
+    }
+    .cell {
+      width: 70px;
+      height: 70px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 38px;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.2s;
+      color: #0e0e0e
+    }
+    .white { background-color: #f0d9b5; }
+    .black { background-color: #b58863; }
+    .selected { outline: 3px solid yellow; }
+    .legal-move { outline: 2px dashed rgba(0, 255, 0, 0.7); }
+    #fenOutput {
+      margin-top: 15px;
+      font-family: monospace;
+      font-size: 14px;
+      background: #333;
+      padding: 10px;
+      border-radius: 5px;
+      max-width: 500px;
+      word-break: break-all;
+    }
+    #status {
+      margin-top: 10px;
+      color: #9cf;
+      font-size: 18px;
+    }
+    .controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    button {
+      padding: 10px 15px;
+      background: #4a4a8a;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: background 0.2s;
+    }
+    button:hover {
+      background: #5a5a9a;
+    }
+    .timer {
+      font-size: 24px;
+      margin: 10px 0;
+      font-family: monospace;
+    }
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      z-index: 100;
+      justify-content: center;
+      align-items: center;
+    }
+    .modal-content {
+      background: #2a2a3a;
+      padding: 20px;
+      border-radius: 10px;
+      width: 400px;
+      max-width: 90%;
+    }
+    .modal h2 {
+      margin-top: 0;
+      color: #9cf;
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+    }
+    select, input {
+      width: 100%;
+      padding: 8px;
+      background: #3a3a4a;
+      border: 1px solid #4a4a5a;
+      color: white;
+      border-radius: 5px;
+    }
+    .game-link {
+      margin-top: 20px;
+      padding: 10px;
+      background: #3a3a4a;
+      border-radius: 5px;
+      word-break: break-all;
+      cursor: pointer;
+    }
+    .game-link:hover {
+      background: #4a4a5a;
+    }
+    .copy-btn {
+      margin-top: 10px;
+      width: 100%;
+    }
+    .game-id {
+      font-size: 12px;
+      color: #aaa;
+      margin-top: 5px;
+    }
+  </style>
+</head>
+<body>
+
+<h1>♟️ Emoji Chess</h1>
+<div class="controls">
+  <button id="randomPlayBtn">Play vs Computer (Random)</button>
+  <button id="createGameBtn">Create Multiplayer Game</button>
+  <button id="joinGameBtn">Join Game</button>
+</div>
+<div class="timer">
+  <span id="whiteTime">10:00</span> | <span id="blackTime">10:00</span>
+</div>
+<div class="board" id="chessBoard"></div>
+<div id="fenOutput">FEN will appear here...</div>
+<div id="status">Select a game mode to start</div>
+
+<!-- Create Game Modal -->
+<div class="modal" id="createGameModal">
+  <div class="modal-content">
+    <h2>Create New Game</h2>
+    <div class="form-group">
+      <label for="gameTime">Time Control (minutes):</label>
+      <input type="number" id="gameTime" min="1" max="60" value="10">
+    </div>
+    <div class="form-group">
+      <label for="playerSide">Your Side:</label>
+      <select id="playerSide">
+        <option value="random">Random</option>
+        <option value="white">White</option>
+        <option value="black">Black</option>
+      </select>
+    </div>
+    <button id="generateGameBtn">Generate Game Link</button>
+    <div id="gameLinkContainer" style="display: none;">
+      <div class="game-link" id="gameLinkText">Click Generate to create link</div>
+      <button class="copy-btn" id="copyLinkBtn">Copy Link</button>
+      <div class="game-id">Game ID: <span id="gameIdDisplay"></span></div>
+    </div>
+  </div>
+</div>
+
+<!-- Join Game Modal -->
+<div class="modal" id="joinGameModal">
+  <div class="modal-content">
+    <h2>Join Existing Game</h2>
+    <div class="form-group">
+      <label for="gameIdInput">Game ID:</label>
+      <input type="text" id="gameIdInput" placeholder="Enter game ID">
+    </div>
+    <button id="joinExistingGameBtn">Join Game</button>
+    <div id="joinStatus"></div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const pieces = {
+      white: {
+        king: "♔", queen: "♕", rook: "♖", bishop: "♗", knight: "♘", pawn: "♙"
+      },
+      black: {
+        king: "♚", queen: "♛", rook: "♜", bishop: "♝", knight: "♞", pawn: "♟"
+      }
+    };
+
+    const pieceToFEN = {
+      "♔": "K", "♕": "Q", "♖": "R", "♗": "B", "♘": "N", "♙": "P",
+      "♚": "k", "♛": "q", "♜": "r", "♝": "b", "♞": "n", "♟": "p"
+    };
+
+    let board = [];
+    let selectedCell = null;
+    let currentTurn = "white";
+    let gameMode = null; // 'random', 'multiplayer'
+    let gameId = null;
+    let playerSide = "white";
+    let whiteTime = 600; // 10 minutes in seconds
+    let blackTime = 600;
+    let timerInterval = null;
+    let lastUpdateTime = Date.now();
+    let gameCheckInterval = null;
+    let legalMoves = [];
+
+    // DOM elements
+    const randomPlayBtn = document.getElementById("randomPlayBtn");
+    const createGameBtn = document.getElementById("createGameBtn");
+    const joinGameBtn = document.getElementById("joinGameBtn");
+    const createGameModal = document.getElementById("createGameModal");
+    const joinGameModal = document.getElementById("joinGameModal");
+    const generateGameBtn = document.getElementById("generateGameBtn");
+    const gameLinkContainer = document.getElementById("gameLinkContainer");
+    const gameLinkText = document.getElementById("gameLinkText");
+    const copyLinkBtn = document.getElementById("copyLinkBtn");
+    const gameIdDisplay = document.getElementById("gameIdDisplay");
+    const gameIdInput = document.getElementById("gameIdInput");
+    const joinExistingGameBtn = document.getElementById("joinExistingGameBtn");
+    const joinStatus = document.getElementById("joinStatus");
+    const whiteTimeDisplay = document.getElementById("whiteTime");
+    const blackTimeDisplay = document.getElementById("blackTime");
+
+    // Config
+    const config = {
+      server: "remote", // Default to remote
+      network: "mainnet", // Default to mainnet
+      get backendUrl() {
+        return (this.server === "localnet" || this.server === "localhost")
+          ? "http://localhost:3000/chesssol/backend"
+          : "https://roynek.com/chesssol/backend";
+      }
+    };
+
+    // Initialize
+    createInitialBoard();
+    drawBoard();
+    updateTimers();
+
+    // Event listeners
+    randomPlayBtn.addEventListener("click", startRandomGame);
+    createGameBtn.addEventListener("click", () => createGameModal.style.display = "flex");
+    joinGameBtn.addEventListener("click", () => joinGameModal.style.display = "flex");
+    generateGameBtn.addEventListener("click", generateGameLink);
+    copyLinkBtn.addEventListener("click", copyGameLink);
+    joinExistingGameBtn.addEventListener("click", joinExistingGame);
+
+    // Close modals when clicking outside
+    window.addEventListener("click", (e) => {
+      if (e.target === createGameModal) createGameModal.style.display = "none";
+      if (e.target === joinGameModal) joinGameModal.style.display = "none";
+    });
+
+    function createInitialBoard() {
+      board = Array.from({ length: 8 }, () => Array(8).fill(""));
+      const backRowWhite = [pieces.white.rook, pieces.white.knight, pieces.white.bishop, pieces.white.queen, pieces.white.king, pieces.white.bishop, pieces.white.knight, pieces.white.rook];
+      const backRowBlack = [pieces.black.rook, pieces.black.knight, pieces.black.bishop, pieces.black.queen, pieces.black.king, pieces.black.bishop, pieces.black.knight, pieces.black.rook];
+      board[0] = backRowBlack;
+      board[1] = Array(8).fill(pieces.black.pawn);
+      board[6] = Array(8).fill(pieces.white.pawn);
+      board[7] = backRowWhite;
+    }
+
+    function drawBoard() {
+      const chessBoard = document.getElementById("chessBoard");
+      chessBoard.innerHTML = "";
+
+      for (let row = 0; row < 8; row++) {
+        for (let col = 0; col < 8; col++) {
+          const cell = document.createElement("div");
+          const isWhite = (row + col) % 2 === 0;
+          cell.className = `cell ${isWhite ? "white" : "black"}`;
+          cell.textContent = board[row][col];
+          cell.dataset.row = row;
+          cell.dataset.col = col;
+
+          // Highlight legal moves
+          const isLegalMove = legalMoves.some(move => 
+            move.to.row === row && move.to.col === col
+          );
+          if (isLegalMove) {
+            cell.classList.add("legal-move");
+          }
+
+          cell.addEventListener("click", () => handleCellClick(cell));
+          chessBoard.appendChild(cell);
+        }
+      }
+
+      updateFENDisplay();
+    }
+
+    function handleCellClick(cell) {
+      if (gameMode === null) return;
+      
+      const row = parseInt(cell.dataset.row);
+      const col = parseInt(cell.dataset.col);
+      const piece = board[row][col];
+
+      // In multiplayer mode, check if it's our turn
+      if (gameMode === "multiplayer" && (
+          (currentTurn === "white" && playerSide !== "white") || 
+          (currentTurn === "black" && playerSide !== "black")
+      )) {
+        updateStatus("It's not your turn!");
+        return;
+      }
+
+      if (selectedCell) {
+        const fromRow = parseInt(selectedCell.dataset.row);
+        const fromCol = parseInt(selectedCell.dataset.col);
+        
+        // Check if this is a legal move
+        const isLegal = legalMoves.some(move => 
+          move.from.row === fromRow && move.from.col === fromCol &&
+          move.to.row === row && move.to.col === col
+        );
+        
+        if (!isLegal) {
+          selectedCell.classList.remove("selected");
+          selectedCell = null;
+          legalMoves = [];
+          drawBoard();
+          return;
+        }
+
+        // Move piece
+        const selectedPiece = board[fromRow][fromCol];
+        board[row][col] = selectedPiece;
+        board[fromRow][fromCol] = "";
+        
+        selectedCell.classList.remove("selected");
+        selectedCell = null;
+        legalMoves = [];
+        
+        currentTurn = currentTurn === "white" ? "black" : "white";
+        drawBoard();
+        updateFENDisplay();
+
+        if (gameMode === "random") {
+          // In random mode, computer makes a move
+          setTimeout(getBestMove, 500);
+        } else if (gameMode === "multiplayer") {
+          // In multiplayer mode, send the move to server
+          const moveNotation = convertToNotation(fromRow, fromCol, row, col);
+          sendMoveToServer(moveNotation);
+        }
+      } else if (piece !== "") {
+        // Only allow selecting our own pieces
+        const isWhitePiece = Object.values(pieces.white).includes(piece);
+        if ((isWhitePiece && playerSide !== "white") || (!isWhitePiece && playerSide !== "black")) {
+          return;
+        }
+        
+        selectedCell = cell;
+        selectedCell.classList.add("selected");
+        
+        // Calculate legal moves (simplified - in a real game you'd need proper move validation)
+        legalMoves = calculateLegalMoves(row, col, piece);
+        drawBoard();
+      }
+    }
+
+    function calculateLegalMoves(row, col, piece) {
+      const moves = [];
+      
+      // Simplified move calculation - in a real game you'd need proper chess rules
+      if (piece === pieces.white.pawn || piece === pieces.black.pawn) {
+        // Pawns move forward one square
+        const direction = piece === pieces.white.pawn ? -1 : 1;
+        if (row + direction >= 0 && row + direction < 8) {
+          if (!board[row + direction][col]) {
+            moves.push({ from: { row, col }, to: { row: row + direction, col } });
+          }
+          
+          // Capture diagonally
+          if (col > 0 && board[row + direction][col - 1] && 
+              (piece === pieces.white.pawn && Object.values(pieces.black).includes(board[row + direction][col - 1])) ||
+              (piece === pieces.black.pawn && Object.values(pieces.white).includes(board[row + direction][col - 1]))) {
+            moves.push({ from: { row, col }, to: { row: row + direction, col: col - 1 } });
+          }
+          if (col < 7 && board[row + direction][col + 1] && 
+              (piece === pieces.white.pawn && Object.values(pieces.black).includes(board[row + direction][col + 1])) ||
+              (piece === pieces.black.pawn && Object.values(pieces.white).includes(board[row + direction][col + 1]))) {
+            moves.push({ from: { row, col }, to: { row: row + direction, col: col + 1 } });
+          }
+        }
+      }
+      // Add more piece movement rules here...
+      
+      return moves;
+    }
+
+    function convertToNotation(fromRow, fromCol, toRow, toCol) {
+      const cols = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+      return cols[fromCol] + (8 - fromRow) + cols[toCol] + (8 - toRow);
+    }
+
+    function updateFENDisplay() {
+      const fen = generateFEN();
+      document.getElementById("fenOutput").textContent = fen;
+    }
+
+    function generateFEN() {
+      let fen = "";
+      for (let row = 0; row < 8; row++) {
+        let emptyCount = 0;
+        for (let col = 0; col < 8; col++) {
+          const piece = board[row][col];
+          if (!piece) {
+            emptyCount++;
+          } else {
+            if (emptyCount > 0) {
+              fen += emptyCount;
+              emptyCount = 0;
+            }
+            fen += pieceToFEN[piece] || "?";
+          }
+        }
+        if (emptyCount > 0) fen += emptyCount;
+        if (row < 7) fen += "/";
+      }
+
+      fen += " " + (currentTurn === "white" ? "w" : "b");
+      fen += " - - 0 1"; // No castling/en-passant tracking for now
+      return fen;
+    }
+
+    function startRandomGame() {
+      gameMode = "random";
+      gameId = "random_" + Math.random().toString(36).substr(2, 9);
+      playerSide = "white";
+      resetGame();
+      updateStatus("Your move! Playing against computer (random)");
+    }
+
+    function generateGameLink() {
+      const timeControl = document.getElementById("gameTime").value;
+      const side = document.getElementById("playerSide").value;
+      
+      // In a real app, you'd make a request to your backend to create the game
+      // For now we'll simulate it with a local ID
+      gameId = "mp_" + Math.random().toString(36).substr(2, 9);
+      
+      // Set player side (random will be determined when second player joins)
+      playerSide = side === "random" ? (Math.random() > 0.5 ? "white" : "black") : side;
+      
+      // Create a shareable link
+      const url = new URL(window.location.href);
+      url.searchParams.set("join", gameId);
+      gameLinkText.textContent = url.toString();
+      gameIdDisplay.textContent = gameId;
+      gameLinkContainer.style.display = "block";
+      
+      // In a real app, you'd send this to your backend
+      fetch(`${config.backendUrl}/create_game`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          game_id: gameId,
+          time_control: timeControl * 60, // Convert to seconds
+          player_side: side,
+          network: config.network
+        })
+      }).then(response => {
+        if (!response.ok) throw new Error("Failed to create game");
+        return response.json();
+      }).then(data => {
+        // Game created successfully
+        updateStatus(`Game created! Share the link with your friend. You're playing as ${playerSide}.`);
+        createGameModal.style.display = "none";
+        gameMode = "multiplayer";
+        resetGame();
+        startGameCheckInterval();
+      }).catch(err => {
+        console.error("Error creating game:", err);
+        alert("Failed to create game. Please try again.");
+      });
+    }
+
+    function joinExistingGame() {
+      const joinGameId = gameIdInput.value.trim();
+      if (!joinGameId) {
+        joinStatus.textContent = "Please enter a game ID";
+        return;
+      }
+      
+      fetch(`${config.backendUrl}/join_game`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          game_id: joinGameId,
+          network: config.network
+        })
+      }).then(response => {
+        if (!response.ok) throw new Error("Failed to join game");
+        return response.json();
+      }).then(data => {
+        // Successfully joined game
+        gameId = joinGameId;
+        playerSide = data.player_side;
+        whiteTime = data.time_control;
+        blackTime = data.time_control;
+        
+        joinGameModal.style.display = "none";
+        gameMode = "multiplayer";
+        resetGame();
+        updateStatus(`Joined game! You're playing as ${playerSide}.`);
+        startGameCheckInterval();
+      }).catch(err => {
+        console.error("Error joining game:", err);
+        joinStatus.textContent = "Failed to join game. Please check the ID and try again.";
+      });
+    }
+
+    function copyGameLink() {
+      navigator.clipboard.writeText(gameLinkText.textContent)
+        .then(() => alert("Game link copied to clipboard!"))
+        .catch(err => console.error("Failed to copy:", err));
+    }
+
+    function resetGame() {
+      createInitialBoard();
+      selectedCell = null;
+      legalMoves = [];
+      currentTurn = "white";
+      
+      // Reset timers
+      const timeControl = document.getElementById("gameTime")?.value || 10;
+      whiteTime = timeControl * 60;
+      blackTime = timeControl * 60;
+      updateTimers();
+      
+      // Clear any existing intervals
+      if (timerInterval) clearInterval(timerInterval);
+      if (gameCheckInterval) clearInterval(gameCheckInterval);
+      
+      // Start timer if in game
+      if (gameMode) {
+        lastUpdateTime = Date.now();
+        timerInterval = setInterval(updateTimers, 1000);
+      }
+      
+      drawBoard();
+    }
+
+    function updateTimers() {
+      const now = Date.now();
+      const elapsed = (now - lastUpdateTime) / 1000; // in seconds
+      lastUpdateTime = now;
+      
+      if (gameMode && currentTurn === "white") {
+        whiteTime = Math.max(0, whiteTime - elapsed);
+      } else if (gameMode && currentTurn === "black") {
+        blackTime = Math.max(0, blackTime - elapsed);
+      }
+      
+      // Format as MM:SS
+      const formatTime = (time) => {
+        const minutes = Math.floor(time / 60);
+        const seconds = Math.floor(time % 60);
+        return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+      };
+      
+      whiteTimeDisplay.textContent = formatTime(whiteTime);
+      blackTimeDisplay.textContent = formatTime(blackTime);
+      
+      // Check for timeout
+      if (whiteTime <= 0 || blackTime <= 0) {
+        clearInterval(timerInterval);
+        updateStatus(`Game over! ${whiteTime <= 0 ? "Black" : "White"} wins by timeout.`);
+      }
+    }
+
+    function updateStatus(message) {
+      document.getElementById("status").textContent = message;
+    }
+
+    function getBestMove() {
+      const fen = generateFEN();
+      updateStatus("Computer is thinking... 🤔");
+
+      fetch(`${config.backendUrl}/get_best_move`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          game_id: gameId, 
+          fen,
+          mode: "random", // Use random mode
+          network: config.network
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.best_move) {
+          applyMoveFromNotation(data.best_move);
+          currentTurn = currentTurn === "white" ? "black" : "white";
+          drawBoard();
+          updateStatus("Your move!");
+        } else {
+          updateStatus("No move received from computer.");
+        }
+      })
+      .catch(err => {
+        updateStatus("Error contacting engine.");
+        console.error(err);
+      });
+    }
+
+    function applyMoveFromNotation(move) {
+      const colMap = { a:0, b:1, c:2, d:3, e:4, f:5, g:6, h:7 };
+      const fromCol = colMap[move[0]];
+      const fromRow = 8 - parseInt(move[1]);
+      const toCol = colMap[move[2]];
+      const toRow = 8 - parseInt(move[3]);
+
+      const piece = board[fromRow][fromCol];
+      board[toRow][toCol] = piece;
+      board[fromRow][fromCol] = "";
+    }
+
+    function sendMoveToServer(move) {
+      fetch(`${config.backendUrl}/make_move`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          game_id: gameId,
+          move,
+          fen: generateFEN(),
+          network: config.network
+        })
+      }).then(response => {
+        if (!response.ok) throw new Error("Move failed");
+        return response.json();
+      }).then(data => {
+        updateStatus(`Move sent! Waiting for opponent...`);
+      }).catch(err => {
+        console.error("Error sending move:", err);
+        updateStatus("Failed to send move. Trying again...");
+        setTimeout(() => sendMoveToServer(move), 2000);
+      });
+    }
+
+    function startGameCheckInterval() {
+      if (gameCheckInterval) clearInterval(gameCheckInterval);
+      gameCheckInterval = setInterval(checkForOpponentMove, 3000);
+    }
+
+    function checkForOpponentMove() {
+      if (gameMode !== "multiplayer") return;
+      
+      fetch(`${config.backendUrl}/get_game_state?game_id=${gameId}&network=${config.network}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.error) {
+            console.error("Error checking game state:", data.error);
+            return;
+          }
+          
+          // Check if the game state has changed
+          if (data.fen !== generateFEN()) {
+            // Update board with new FEN
+            updateBoardFromFEN(data.fen);
+            currentTurn = data.current_turn;
+            whiteTime = data.white_time;
+            blackTime = data.black_time;
+            drawBoard();
+            
+            if ((currentTurn === "white" && playerSide === "white") || 
+                (currentTurn === "black" && playerSide === "black")) {
+              updateStatus("Your move!");
+            } else {
+              updateStatus("Opponent's turn...");
+            }
+          }
+        })
+        .catch(err => {
+          console.error("Error checking for opponent move:", err);
+        });
+    }
+
+    function updateBoardFromFEN(fen) {
+      // Simplified FEN parsing - in a real app you'd need complete FEN parsing
+      const parts = fen.split(" ");
+      const boardPart = parts[0];
+      
+      let row = 0;
+      let col = 0;
+      board = Array.from({ length: 8 }, () => Array(8).fill(""));
+      
+      for (const char of boardPart) {
+        if (char === "/") {
+          row++;
+          col = 0;
+        } else if (/\d/.test(char)) {
+          col += parseInt(char);
+        } else {
+          // Find the piece
+          const piece = Object.keys(pieceToFEN).find(key => pieceToFEN[key] === char);
+          if (piece) {
+            board[row][col] = piece;
+          }
+          col++;
+        }
+      }
+      
+      currentTurn = parts[1] === "w" ? "white" : "black";
+    }
+  });
+</script>
+</body>
+</html>

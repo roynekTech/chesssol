@@ -1,4 +1,4 @@
-cd ~/public_html/chesssol/backend
+cd ~/public_html/chesssol/backend/chess-engine
 
 # Download source zip
 wget https://github.com/official-stockfish/Stockfish/archive/refs/tags/sf_16.zip

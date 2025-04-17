@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Modern Emoji Chess</title>
+  <style>
+    body {
+      background: #1e1e2f;
+      color: #eee;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-family: 'Segoe UI', sans-serif;
+      padding: 20px;
+    }
+    h1 {
+      margin-bottom: 10px;
+    }
+    .board {
+      display: grid;
+      grid-template-columns: repeat(8, 70px);
+      grid-template-rows: repeat(8, 70px);
+      box-shadow: 0 0 15px rgba(0, 0, 0, 0.7);
+    }
+    .cell {
+      width: 70px;
+      height: 70px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 38px;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.2s;
+      color: #0e0e0e
+    }
+    .white { background-color: #f0d9b5; }
+    .black { background-color: #b58863; }
+    .selected { outline: 3px solid yellow; }
+    #fenOutput {
+      margin-top: 15px;
+      font-family: monospace;
+      font-size: 14px;
+      background: #333;
+      padding: 10px;
+      border-radius: 5px;
+    }
+    #status {
+      margin-top: 10px;
+      color: #9cf;
+    }
+  </style>
+</head>
+<body>
+
+<h1>♟️ Emoji Chess vs Stockfish</h1>
+<div class="board" id="chessBoard"></div>
+<div id="fenOutput">FEN will appear here...</div>
+<div id="status"></div>
+
+<script>
+
+let board = [];
+    let selectedCell = null;
+    let currentTurn = "white";
+    
+
+    // Read URL parameters
+    const params = new URLSearchParams(window.location.search);
+    const serverParam = params.get("server") || "remote"; // default to remote
+    const networkParam = params.get("network") || "mainnet"; // default to mainnet
+
+    const gameId = params.get("game_id");
+    if(!gameId){
+      alert("issues with the gameid");
+    }
+
+    // Global config variables
+    const config = {
+      server: serverParam,
+      network: networkParam,
+      get bestMoveUrl() {
+        return (this.server === "localnet" || this.server === "localhost")
+          ? "http://localhost:3000/chesssol/backend/get_best_move"
+          : "https://roynek.com/chesssol/backend/get_best_move";
+      }
+    };
+
+    console.log("Server:", config.server, "Network:", config.network);
+
+
+  document.addEventListener("DOMContentLoaded", () => {
+    const pieces = {
+      white: {
+        king: "♔", queen: "♕", rook: "♖", bishop: "♗", knight: "♘", pawn: "♙"
+      },
+      black: {
+        king: "♚", queen: "♛", rook: "♜", bishop: "♝", knight: "♞", pawn: "♟"
+      }
+    };
+
+    const pieceToFEN = {
+      "♔": "K", "♕": "Q", "♖": "R", "♗": "B", "♘": "N", "♙": "P",
+      "♚": "k", "♛": "q", "♜": "r", "♝": "b", "♞": "n", "♟": "p"
+    };
+    // const pieceToFEN = {
+    //     "🨀": "K", "🨁": "Q", "🨂": "R", "🨃": "B", "🨄": "N", "🨅": "P",  // White
+    //     "🨆": "k", "🨇": "q", "🨈": "r", "🨉": "b", "🨊": "n", "🨋": "p"   // Black
+    // };
+
+    
+    function createInitialBoard() {
+      board = Array.from({ length: 8 }, () => Array(8).fill(""));
+      const backRowWhite = [pieces.white.rook, pieces.white.knight, pieces.white.bishop, pieces.white.queen, pieces.white.king, pieces.white.bishop, pieces.white.knight, pieces.white.rook];
+      const backRowBlack = [pieces.black.rook, pieces.black.knight, pieces.black.bishop, pieces.black.queen, pieces.black.king, pieces.black.bishop, pieces.black.knight, pieces.black.rook];
+      board[0] = backRowBlack;
+      board[1] = Array(8).fill(pieces.black.pawn);
+      board[6] = Array(8).fill(pieces.white.pawn);
+      board[7] = backRowWhite;
+    }
+
+    function drawBoard() {
+      const chessBoard = document.getElementById("chessBoard");
+      chessBoard.innerHTML = "";
+
+      for (let row = 0; row < 8; row++) {
+        for (let col = 0; col < 8; col++) {
+          const cell = document.createElement("div");
+          const isWhite = (row + col) % 2 === 0;
+          cell.className = `cell ${isWhite ? "white" : "black"}`;
+          cell.textContent = board[row][col];
+          cell.dataset.row = row;
+          cell.dataset.col = col;
+
+          cell.addEventListener("click", () => handleCellClick(cell));
+          chessBoard.appendChild(cell);
+        }
+      }
+
+      updateFENDisplay();
+    }
+
+    /* function handleCellClick(cell) {
+      const row = parseInt(cell.dataset.row);
+      const col = parseInt(cell.dataset.col);
+      const piece = board[row][col];
+
+      if (selectedCell) {
+        const fromRow = parseInt(selectedCell.dataset.row);
+        const fromCol = parseInt(selectedCell.dataset.col);
+        const selectedPiece = board[fromRow][fromCol];
+
+        // Move piece
+        board[row][col] = selectedPiece;
+        board[fromRow][fromCol] = "";
+        selectedCell.classList.remove("selected");
+        selectedCell = null;
+        currentTurn = currentTurn === "white" ? "black" : "white";
+        drawBoard();
+        updateFENDisplay();
+
+        // Ask backend for best move
+        getBestMove();
+      } else if (piece !== "") {
+        selectedCell = cell;
+        selectedCell.classList.add("selected");
+      }
+    } */
+
+    function sendMoveViaWebSocket(fromRow, fromCol, toRow, toCol) {
+        const moveData = {
+            type: "move",
+            gameId: gameId,
+            from: { row: fromRow, col: fromCol },
+            to: { row: toRow, col: toCol },
+            turn: currentTurn,
+        };
+
+        socket.send(JSON.stringify(moveData));
+    }
+
+
+    function handleCellClick(cell) {
+        const row = parseInt(cell.dataset.row);
+        const col = parseInt(cell.dataset.col);
+        const piece = board[row][col];
+
+        if (selectedCell) {
+            const fromRow = parseInt(selectedCell.dataset.row);
+            const fromCol = parseInt(selectedCell.dataset.col);
+            const selectedPiece = board[fromRow][fromCol];
+
+            // Only allow current player's turn
+            if ((currentTurn === "white" && selectedPiece === selectedPiece.toUpperCase()) ||
+                (currentTurn === "black" && selectedPiece === selectedPiece.toLowerCase())) {
+
+            // Move piece locally
+            board[row][col] = selectedPiece;
+            board[fromRow][fromCol] = "";
+            selectedCell.classList.remove("selected");
+            selectedCell = null;
+            currentTurn = currentTurn === "white" ? "black" : "white";
+            drawBoard();
+            updateFENDisplay();
+
+            // Send move via WebSocket
+            sendMoveViaWebSocket(fromRow, fromCol, row, col);
+            } else {
+            selectedCell.classList.remove("selected");
+            selectedCell = null;
+            }
+        } else if (piece !== "") {
+            selectedCell = cell;
+            selectedCell.classList.add("selected");
+        }
+        }
+
+
+    function updateFENDisplay() {
+      const fen = generateFEN();
+      document.getElementById("fenOutput").textContent = fen;
+    }
+
+    function generateFEN() {
+      let fen = "";
+      for (let row = 0; row < 8; row++) {
+        let emptyCount = 0;
+        for (let col = 0; col < 8; col++) {
+          const piece = board[row][col];
+          if (!piece) {
+            emptyCount++;
+          } else {
+            if (emptyCount > 0) {
+              fen += emptyCount;
+              emptyCount = 0;
+            }
+            fen += pieceToFEN[piece] || "?";
+          }
+        }
+        if (emptyCount > 0) fen += emptyCount;
+        if (row < 7) fen += "/";
+      }
+
+      fen += " " + (currentTurn === "white" ? "w" : "b");
+      fen += " - - 0 1"; // No castling/en-passant tracking for now
+      return fen;
+    }
+
+
+    function setupWebSocket() {
+      // const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
+      // const wsUrl = `${wsProtocol}://${config.server}/chesssol/ws?game_id=${gameId}`;
+
+      // const wsUrl = `${wsProtocol}://${config.server}?game_id=${gameId}`;
+
+      const wsHost = (config.server === "localnet" || config.server === "localhost")
+        ? "http://localhost:3000"  // or whatever port your WS server uses
+        : "wss://roynek.com/chesssol/backend/";
+
+      const wsUrl = `${wsHost}`;
+
+      // const socket = new WebSocket(`${wsHost}/?game_id=${gameId}`);
+
+
+
+      socket = new WebSocket(wsUrl);
+
+      socket.onopen = () => {
+        console.log("WebSocket connected.");
+        document.getElementById("status").textContent = "Connected to game server.";
+      };
+
+      socket.onmessage = (event) => {
+        const message = JSON.parse(event.data);
+
+        if (message.type === "move" && message.gameId === gameId) {
+          const { from, to } = message;
+
+          const movedPiece = board[from.row][from.col];
+          board[to.row][to.col] = movedPiece;
+          board[from.row][from.col] = "";
+          currentTurn = currentTurn === "white" ? "black" : "white";
+          drawBoard();
+          updateFENDisplay();
+        }
+      };
+
+      socket.onerror = (err) => {
+        console.error("WebSocket error:", err);
+        document.getElementById("status").textContent = "WebSocket error.";
+      };
+
+      socket.onclose = () => {
+        console.log("WebSocket disconnected.");
+        document.getElementById("status").textContent = "Disconnected from server.";
+      };
+    }
+
+  
+
+    /* function getBestMove() {
+      const fen = generateFEN();
+      const status = document.getElementById("status");
+      status.textContent = "Thinking... 🤔";
+
+      fetch(config.bestMoveUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ game_id: gameId, fen, network: config.network })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.best_move) {
+          applyMoveFromNotation(data.best_move);
+          currentTurn = currentTurn === "white" ? "black" : "white";
+          drawBoard();
+          status.textContent = "Your move!";
+        } else {
+          status.textContent = "No move received.";
+        }
+      })
+      .catch(err => {
+        status.textContent = "Error contacting engine.";
+        console.error(err);
+      });
+    }
+
+
+    function applyMoveFromNotation(move) {
+      const colMap = { a:0, b:1, c:2, d:3, e:4, f:5, g:6, h:7 };
+      const fromCol = colMap[move[0]];
+      const fromRow = 8 - parseInt(move[1]);
+      const toCol = colMap[move[2]];
+      const toRow = 8 - parseInt(move[3]);
+
+      const piece = board[fromRow][fromCol];
+      board[toRow][toCol] = piece;
+      board[fromRow][fromCol] = "";
+    } */
+
+    let socket;
+    // const gameId = "game_001";  // You can make this dynamic
+    createInitialBoard();
+    drawBoard();
+    setupWebSocket();
+
+
+  });
+
+
+//   let socket = new WebSocket("ws://localhost:3000");
+// socket.onmessage = (msg) => console.log(msg.data);
+// socket.send(JSON.stringify({type: "join", gameId: "1", client: "player1"}));
+
+
+// {
+//   "type": "join",
+//   "gameId": "123",
+//   "client": "player1"
+// }
+
+
+// {
+//   "type": "move",
+//   "gameId": "123",
+//   "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+//   "client": "player1",
+//   "clientTime": "2025-04-15T10:00:00Z"
+// }
+
+
+</script>
+
+</body>
+</html>

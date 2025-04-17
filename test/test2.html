@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Chess Game Client</title>
+</head>
+<body>
+  <h1>Chess Game WebSocket Test</h1>
+  <div>
+    <label>Game ID: <input type="text" id="gameId" value="game123" /></label><br>
+    <label>Client Name: <input type="text" id="client" value="Player1" /></label><br>
+    <button onclick="connectWS()">Join Game</button>
+    <button onclick="sendMove()">Send Move</button>
+  </div>
+
+  <pre id="log"></pre>
+
+  <script>
+    let ws = null;
+
+    function log(msg) {
+      document.getElementById('log').textContent += msg + '\n';
+    }
+
+    function connectWS() {
+      const gameId = document.getElementById('gameId').value;
+      const client = document.getElementById('client').value;
+
+      // WebSocket connection to the server
+      ws = new WebSocket('ws://localhost:3000'); // Replace with your server address if deployed
+
+      ws.onopen = () => {
+        log('WebSocket connected.');
+        // Join the game
+        ws.send(JSON.stringify({ type: 'join', gameId, client }));
+      };
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        log(`Received: ${JSON.stringify(data, null, 2)}`);
+      };
+
+      ws.onclose = () => log('WebSocket closed.');
+      ws.onerror = (err) => log('WebSocket error: ' + err.message);
+    }
+
+    function sendMove() {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        log("WebSocket is not connected.");
+        return;
+      }
+
+      const gameId = document.getElementById('gameId').value;
+      const client = document.getElementById('client').value;
+
+      // Just using dummy FEN and time here
+      const moveMessage = {
+        type: "move",
+        gameId,
+        client,
+        fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+        clientTime: new Date().toISOString()
+      };
+
+      ws.send(JSON.stringify(moveMessage));
+      log(`Sent move: ${JSON.stringify(moveMessage)}`);
+    }
+  </script>
+</body>
+</html>
