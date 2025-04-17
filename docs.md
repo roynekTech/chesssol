@@ -3,11 +3,14 @@
 ## Base URL
 ```
 http://localhost:8080/chesssol/backend
+https://roynek.com/chesssol/backend
 ```
+
 
 ## WebSocket Endpoint
 ```
 ws://localhost:8080/chesssol/backend/ws
+ws://roynek.com/chesssol/backend/ws
 ```
 
 ## REST API Endpoints
