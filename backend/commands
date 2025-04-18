@@ -13,3 +13,17 @@ make build ARCH=x86-64
 # g++ -O3 -fno-exceptions -fno-rtti -std=c++17 *.cpp -o stockfish
 
 ./stockfish
+#TODO: if it works, end it and more to the next
+
+
+https://github.com/official-stockfish/Stockfish/archive/refs/tags/sf_15.1.zip
+https://github.com/official-stockfish/Stockfish/archive/refs/tags/sf_15.zip
+https://github.com/official-stockfish/Stockfish/archive/refs/tags/sf_14.zip
+
+https://github.com/official-stockfish/Stockfish/archive/refs/tags/sf_13.zip
+https://github.com/official-stockfish/Stockfish/archive/refs/tags/sf_12.zip
+https://github.com/official-stockfish/Stockfish/archive/refs/tags/sf_11.zip
+
+https://github.com/official-stockfish/Stockfish/archive/refs/tags/sf_10.zip
+https://github.com/official-stockfish/Stockfish/archive/refs/tags/sf_9.zip
+https://github.com/official-stockfish/Stockfish/archive/refs/tags/sf_7.zip

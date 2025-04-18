@@ -2,6 +2,8 @@ const express = require('express');
 const cors = require('cors'); // Add this line
 const { spawn } = require('child_process');
 const path = require('path');
+const { v4: uuidv4 } = require('uuid');
+
 // const app = express();
 const port = 8080; //3000;
 
@@ -53,11 +55,17 @@ const games = new Map(); // Stores active games
 
 wss.on('connection', (ws) => {
   console.log('New client connected');
+
   
   ws.on('message', (message) => {
+    // console.log('Raw message:', message); // Add this to see exactly what's received
+
     try {
       const data = JSON.parse(message);
-      
+      // console.log(data);
+      console.log('Parsed data:', data); // Add this to see the parsed data
+
+
       switch(data.type) {
         case 'create':
           handleCreate(ws, data);
@@ -67,6 +75,12 @@ wss.on('connection', (ws) => {
           break;
         case 'move':
           handleMove(ws, data);
+          break;
+        case 'listGames':
+          handleListGames(ws);
+          break;
+        case 'viewGame':
+          handleViewGame(ws, data.gameId);
           break;
         case 'chat':
             handleChat(ws, msg);
@@ -81,6 +95,8 @@ wss.on('connection', (ws) => {
           ws.send(JSON.stringify({ error: 'Invalid message type' }));
       }
     } catch (e) {
+      console.error('JSON parse error:', e);
+      console.error('Problematic message:', message);
       ws.send(JSON.stringify({ error: 'Invalid JSON format' }));
     }
   });
@@ -111,14 +127,24 @@ wss.on('connection', (ws) => {
 
 
 function handleCreate(ws) {
-    const gameId = uuidv4();
+  const gameId = uuidv4();
     const chess = new Chess();
     
-    games.set(gameId, {
+    // games.set(gameId, {
+    //   players: new Set([ws]),
+    //   chess,
+    //   status: 'waiting'
+    // });
+    // Create game object
+    const game = {
       players: new Set([ws]),
+      viewers: new Set(),
       chess,
       status: 'waiting'
-    });
+    };
+    
+    // Add to games Map
+    games.set(gameId, game);
     
     ws.send(JSON.stringify({
       type: 'created',
@@ -126,7 +152,13 @@ function handleCreate(ws) {
       fen: chess.fen(),
       color: 'w'
     }));
-    
+
+    console.log(JSON.stringify({
+      type: 'created',
+      gameId,
+      fen: chess.fen(),
+      color: 'w'
+    }));
     console.log(`Game created: ${gameId}`);
 }
 
@@ -168,7 +200,13 @@ function handleCreate(ws) {
 }
  */
   
-function handleJoin(ws, gameId) {
+function handleJoin(ws, data) {
+    // console.log(JSON.stringify(games));
+    console.log('Games:', Array.from(games.entries()));
+    let gameId = data.gameId;
+    console.log(`Attempting to join game: ${data.gameId}`);
+    console.log('Available games:', Array.from(games.keys()));
+
     const game = games.get(gameId);
     if (!game) {
       return ws.send(JSON.stringify({
@@ -185,7 +223,7 @@ function handleJoin(ws, gameId) {
     }
     
     game.players.add(ws);
-    game.status = 'active';
+    game.status = 'active'; //running
     
     // Notify both players
     const players = [...game.players];
@@ -213,14 +251,35 @@ function handleJoin(ws, gameId) {
     try {
       game.chess.load(fen);
       
-      // Broadcast new state
-      game.players.forEach(player => {
-        player.send(JSON.stringify({
-          type: 'move',
-          fen: game.chess.fen(),
-          turn: game.chess.turn()
-        }));
-      });
+      let message = {
+        type: 'move',
+        fen: game.chess.fen(),
+        turn: game.chess.turn(),
+        valid: true
+      }
+
+      broadcastToAll(game, message);
+      
+      // // Broadcast new state to players
+      // game.players.forEach(player => {
+      //   player.send(JSON.stringify({
+      //     type: 'move',
+      //     fen: game.chess.fen(),
+      //     turn: game.chess.turn(),
+      //     valid: true
+      //   }));
+      // });
+
+      // // Broadcast new state to players
+      // game.viewers.forEach(viewer => {
+      //   viewer.send(JSON.stringify({
+      //     type: 'move',
+      //     fen: game.chess.fen(),
+      //     turn: null,
+      //     valid: true
+          
+      //   }));
+      // });
       
       console.log(`Move in ${gameId} by ${client}`);
     } catch (e) {
@@ -229,6 +288,65 @@ function handleJoin(ws, gameId) {
         message: 'Invalid move'
       }));
     }
+  }
+
+  function handleListGames(ws) {
+    const availableGames = Array.from(games.entries())
+      .filter(([_, game]) => game.status === 'waiting' || game.status === 'active')
+      .map(([gameId, game]) => ({
+        gameId,
+        status: game.status,
+        players: game.players.size,
+        viewers: game.viewers.size,
+        fen: game.chess.fen()
+      }));
+  
+    ws.send(JSON.stringify({
+      type: 'gameList',
+      games: availableGames
+    }));
+  }
+  
+  function handleViewGame(ws, gameId) {
+    const game = games.get(gameId);
+    
+    if (!game) {
+      return ws.send(JSON.stringify({
+        type: 'error',
+        message: 'Game not found'
+      }));
+    }
+  
+    // Add to viewers (remove from players if they were there)
+    // game.players.delete(ws);
+    // Check if already a player in this game
+    if (game.players.has(ws)) {
+      return ws.send(JSON.stringify({
+        type: 'error',
+        message: 'You are already a player in this game'
+      }));
+    }
+
+    // Check if already a viewer
+    if (game.viewers.has(ws)) {
+      return ws.send(JSON.stringify({
+        type: 'error',
+        message: 'You are already viewing this game'
+      }));
+    }
+
+    game.viewers.add(ws);
+    
+    ws.send(JSON.stringify({
+      type: 'viewingGame',
+      gameId,
+      fen: game.chess.fen(),
+      status: game.status,
+      players: game.players.size,
+      viewers: game.viewers.size
+    }));
+  
+    console.log(`New viewer for game ${gameId}`);
   }
   
   function handleChat(ws, { gameId, message, client }) {
@@ -301,6 +419,15 @@ function handleJoin(ws, gameId) {
     clearTimeout(game.timeout);
     games.delete(gameId);
     console.log(`Game ${gameId} ended by resignation`);
+  }
+
+  function broadcastToAll(game, message) {
+    const allParticipants = new Set([...game.players, ...game.viewers]);
+    allParticipants.forEach(participant => {
+      if (participant.readyState === WebSocket.OPEN) {
+        participant.send(JSON.stringify(message));
+      }
+    });
   }
 
 console.log('Chess WebSocket server running on ws://localhost:'+port);

@@ -132,7 +132,8 @@
     let selectedCell = null;
     let legalMoves = [];
     let currentGameId = null;
-    let playerColor = null;
+    let playerColor = 'w';
+    // let playerColor = null;
     let currentTurn = "white";
     let socket = null;
     let playerId = `player_${Math.random().toString(36).substr(2, 8)}`;
@@ -195,7 +196,7 @@
                       `Your turn (${playerColor === data.fen.split(' ')[1] ? 'YES' : 'NO'})`);
           break;
 
-        case 'moveResult':
+        case 'move':
           if (data.valid) {
             loadBoardFromFEN(data.fen);
           } else {
@@ -253,7 +254,7 @@
       return '';
     }
 
-    function drawBoard() {
+    /* function drawBoard() {
       chessBoard.innerHTML = '';
       
       for (let row = 0; row < 8; row++) {
@@ -267,8 +268,8 @@
           
           // Highlight selected cell and legal moves
           if (selectedCell && 
-              parseInt(selectedCell.dataset.row) === row && 
-              parseInt(selectedCell.dataset.col) === col) {
+              parseInt(selectedCell.row) === row && 
+              parseInt(selectedCell.col) === col) {
             cell.classList.add('selected');
           }
           
@@ -279,7 +280,7 @@
         }
       }
     }
-
+ */
  /*    function handleCellClick(row, col) {
       // If not your turn, ignore
       if ((currentTurn === 'white' && playerColor !== 'w') || 
@@ -329,7 +330,10 @@
     }
  */
     function updateFENDisplay() {
-      fenOutput.textContent = generateFEN();
+      let d_fen = generateFEN();
+      fenOutput.textContent = d_fen;
+
+      return d_fen;
     }
 
     function generateFEN() {
@@ -359,8 +363,34 @@
 
     
 
-
- function handleCellClick(row, col) {
+    /* function drawBoard() {
+      chessBoard.innerHTML = '';
+      
+      for (let row = 0; row < 8; row++) {
+        for (let col = 0; col < 8; col++) {
+          const cell = document.createElement('div');
+          const isWhite = (row + col) % 2 === 0;
+          cell.className = `cell ${isWhite ? 'white' : 'black'}`;
+          cell.textContent = board[row][col];
+          cell.dataset.row = row;
+          cell.dataset.col = col;
+          
+          // Highlight selected cell and legal moves
+          if (selectedCell && 
+              parseInt(selectedCell.row) === row && 
+              parseInt(selectedCell.col) === col) {
+            cell.classList.add('selected');
+          }
+          
+          // Add click handler
+          cell.addEventListener('click', () => handleCellClick(row, col));
+          
+          chessBoard.appendChild(cell);
+        }
+      }
+    }
+ */
+ /* function handleCellClick(row, col) {
   // If not your turn, ignore
   if ((currentTurn === 'white' && playerColor !== 'w') || 
       (currentTurn === 'black' && playerColor !== 'b')) {
@@ -380,7 +410,12 @@
     }
     
     // Select the piece
-    selectedCell = { row, col };
+    // selectedCell = { row, col };
+    selectedCell = { 
+      row, 
+      col,
+      element: document.querySelector(`[data-row="${row}"][data-col="${col}"]`)
+    };
     // TODO: Calculate and highlight legal moves here
     drawBoard();
     return;
@@ -411,8 +446,93 @@
   selectedCell = null;
   drawBoard();
 }
+ */
 
-// Helper function to generate FEN from board state
+ function drawBoard() {
+      const chessBoard = document.getElementById("chessBoard");
+      chessBoard.innerHTML = "";
+
+      for (let row = 0; row < 8; row++) {
+        for (let col = 0; col < 8; col++) {
+          const cell = document.createElement("div");
+          const isWhite = (row + col) % 2 === 0;
+          cell.className = `cell ${isWhite ? "white" : "black"}`;
+          cell.textContent = board[row][col];
+          cell.dataset.row = row;
+          cell.dataset.col = col;
+
+          cell.addEventListener("click", () => handleCellClick(cell));
+          chessBoard.appendChild(cell);
+        }
+      }
+
+      updateFENDisplay();
+    }
+
+
+ function handleCellClick(cell) {
+      const row = parseInt(cell.dataset.row);
+      const col = parseInt(cell.dataset.col);
+      const piece = board[row][col];
+
+      if (selectedCell) {
+        const fromRow = parseInt(selectedCell.dataset.row);
+        const fromCol = parseInt(selectedCell.dataset.col);
+        const selectedPiece = board[fromRow][fromCol];
+
+        // Move piece
+        board[row][col] = selectedPiece;
+        board[fromRow][fromCol] = "";
+        selectedCell.classList.remove("selected");
+        selectedCell = null;
+        currentTurn = currentTurn === "white" ? "black" : "white";
+
+        // If we have a selected piece and are making a move
+  // const fromRow = selectedCell.row;
+  // const fromCol = selectedCell.col;
+  
+  // Create a temporary board to generate the new FEN
+  const tempBoard = JSON.parse(JSON.stringify(board));
+  // tempBoard[row][col] = tempBoard[fromRow][fromCol]; // Move piece
+  // tempBoard[fromRow][fromCol] = ""; // Clear original position
+  
+  // Generate the new FEN
+  const newFEN = generateFENFromBoard(tempBoard, currentTurn === 'white' ? 'b' : 'w');
+  
+  // Send move to server
+  socket.send(JSON.stringify({
+    type: 'move',
+    gameId: currentGameId,
+    fen: newFEN,
+    client: playerId,
+    clientTime: Date.now()
+  }));
+  
+  // Clear selection
+  selectedCell = null;
+  //we would draw when we get the broadcast from the server...
+  // drawBoard();
+        // drawBoard();
+        // let newFEN = updateFENDisplay();
+
+        // // Ask backend for best move
+        // // Send move to server
+        // socket.send(JSON.stringify({
+        //     type: 'move',
+        //     gameId: currentGameId,
+        //     fen: newFEN,
+        //     client: playerId,
+        //     clientTime: Date.now()
+        // }));
+
+      } else if (piece !== "") {
+        selectedCell = cell;
+        selectedCell.classList.add("selected");
+      }
+    }
+
+
+ // Helper function to generate FEN from board state
 function generateFENFromBoard(boardState, nextTurn) {
   let fen = '';
   
