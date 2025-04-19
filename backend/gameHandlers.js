@@ -3,6 +3,7 @@
 const { getDbConnection } = require('./db');
 const { Chess } = require('chess.js');
 const { v4: uuidv4 } = require('uuid');
+const { spawn } = require('child_process');
 
 
 function assignRandomSide() {
