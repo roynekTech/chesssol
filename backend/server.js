@@ -64,10 +64,21 @@ const httpServer = app.listen(port, () => {
 //         }
 //       }
 // });
-const wss = new WebSocket.Server({ 
+
+
+/* const wss = new WebSocket.Server({ 
     server: httpServer,
     path: MAIN_DIR + '/ws'
     // No verifyClient → allows all connections
+}); */
+
+const wss = new WebSocket.Server({ 
+    server: httpServer,
+    path: MAIN_DIR + '/ws',
+    verifyClient: (info, callback) => {
+        console.log(`New connection from: ${info.origin || 'Unknown origin'}`);
+        callback(true); // Always allow, but log
+    }
 });
 
 const games = new Map(); // Stores active games
