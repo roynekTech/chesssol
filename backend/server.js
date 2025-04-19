@@ -48,22 +48,28 @@ const httpServer = app.listen(port, () => {
 
 
 // const wss = new WebSocket.Server({ port: 8080 });
+// const wss = new WebSocket.Server({ 
+//     server: httpServer ,
+//     path: MAIN_DIR + '/ws',
+//     verifyClient: (info, callback) => {
+//         // Allow connections from localhost and your domain
+//         const allowedOrigins = [
+//           'http://localhost',
+//           'https://roynek.com'
+//         ];
+//         if (allowedOrigins.includes(info.origin)) {
+//           callback(true); // Accept connection
+//         } else {
+//           callback(false, 401, 'Unauthorized origin');
+//         }
+//       }
+// });
 const wss = new WebSocket.Server({ 
-    server: httpServer ,
-    path: MAIN_DIR + '/ws',
-    verifyClient: (info, callback) => {
-        // Allow connections from localhost and your domain
-        const allowedOrigins = [
-          'http://localhost',
-          'https://roynek.com'
-        ];
-        if (allowedOrigins.includes(info.origin)) {
-          callback(true); // Accept connection
-        } else {
-          callback(false, 401, 'Unauthorized origin');
-        }
-      }
+    server: httpServer,
+    path: MAIN_DIR + '/ws'
+    // No verifyClient → allows all connections
 });
+
 const games = new Map(); // Stores active games
 
 wss.on('connection', (ws) => {
