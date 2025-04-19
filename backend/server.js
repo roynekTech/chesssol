@@ -386,7 +386,6 @@ function handleJoin(ws, data) {
 }
   
 
-let game_nonce = generateNonce();
 
   // Updated handleJoin with betting support
   async function handleJoin(ws, data) {
@@ -435,6 +434,10 @@ let game_nonce = generateNonce();
             message: 'WalletAddress is now required in joining games.'
           }));
     }
+
+    //Add nonce
+    let game_nonce = generateNonce();
+    game.nonce = game_nonce;
   
     // Add player
     game.players.add(ws);
@@ -457,6 +460,8 @@ let game_nonce = generateNonce();
     }
     
     let new_opp = game.creator.side === 'w' ? 'b' : 'w';
+    
+
     // Notify all players
     const players = [...game.players];
     players[0].send(JSON.stringify({
@@ -555,7 +560,7 @@ let game_nonce = generateNonce();
     }
   } */
 
-    game_nonce = generateNonce();
+    
     async function handleMove(ws, { gameId, fen, client, move, initialFen }) {
         const game = games.get(gameId);
         if (!game) {
@@ -581,6 +586,10 @@ let game_nonce = generateNonce();
             // 2. Update game state
             game.chess.load(fen);
             const currentFen = game.chess.fen();
+
+            // update nonce
+            let ch_nonce = generateNonce();
+            game.nonce = ch_nonce;
     
             // 3. Broadcast move
             broadcastToAll(game, {
@@ -589,7 +598,7 @@ let game_nonce = generateNonce();
                 turn: game.chess.turn(),
                 valid: true,
                 lastMove: move,
-                nonce: game_nonce
+                nonce: ch_nonce
             });
     
             // 4. Append FEN to DB (lightweight update)
