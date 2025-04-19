@@ -462,7 +462,8 @@ let game_nonce = generateNonce();
         
         const gameData = {
             game_hash: data.gameId,
-            game_state: 'waiting',
+            game_state: 'active',
+            // game_state: 'waiting',
             // player1: assignedColor === 'w' ? data.walletAddress : "",
             // player2: assignedColor === 'b' ? data.walletAddress : "",
             player1: game.wallets[0],
