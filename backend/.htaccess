@@ -1,0 +1,7 @@
+<IfModule mod_proxy.c>
+    <IfModule mod_proxy_wstunnel.c>
+        RewriteEngine On
+        RewriteCond %{HTTP:Upgrade} =websocket [NC]
+        RewriteRule ^ws$ ws://localhost:8080/chesssol/backend/ws [P,L]
+    </IfModule>
+</IfModule>
