@@ -152,7 +152,13 @@
 
     // Initialize WebSocket connection
     function connectWebSocket() {
-      wsUrl = 'ws://localhost:8080/chesssol/backend/ws';
+      // Use secure WebSocket and match the page protocol
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      
+      // let wsUrl = 'ws://localhost:8080/chesssol/backend/ws';
+      // wsUrl = `${protocol}//roynek.com/chesssol/backend/ws`;
+      // wsUrl = `${protocol}//roynek.com/chesssol/backend/ws`;
+      let wsUrl = `${protocol}//localhost:8080/chesssol/backend/ws`;
       socket = new WebSocket(wsUrl);
 
       socket.addEventListener('open', () => {
@@ -179,7 +185,7 @@
         case 'created':
           currentGameId = data.gameId;
           playerColor = 'white';
-          updateGameInfo(`Game created (ID: ${data.gameId}) - You are White`);
+          updateGameInfo(`Game created (ID: ${data.gameId}) - You are ${data.color}`);
           loadBoardFromFEN(data.fen);
           break;
 
@@ -361,6 +367,39 @@
       return fen;
     }
 
+
+    function indicesToChessNotation(row, col) {
+      // Convert column index to letter (0=a, 1=b, ..., 7=h)
+      const letter = String.fromCharCode(97 + col); // 97 = 'a'.charCodeAt(0)
+      
+      // Convert row index to rank (0=8, 1=7, ..., 7=1)
+      const rank = 8 - row;
+      
+      return `${letter}${rank}`;
+    }
+
+    function chessNotationToIndices(notation) {
+      const letter = notation[0].toLowerCase();
+      const rank = parseInt(notation[1]);
+      
+      return {
+        row: 8 - rank,  // e.g., "e4" → row = 8-4 = 4
+        col: letter.charCodeAt(0) - 97 // 'e' → 101-97 = 4
+      };
+    }
+
+    function coordsToChessMove(fromRow, fromCol, toRow, toCol) {
+      // Convert column indices to letters (0=a, 1=b, ..., 7=h)
+      const fromLetter = String.fromCharCode(97 + fromCol);
+      const toLetter = String.fromCharCode(97 + toCol);
+      
+      // Convert row indices to ranks (0=8, 1=7, ..., 7=1)
+      const fromRank = 8 - fromRow;
+      const toRank = 8 - toRow;
+      
+      return `${fromLetter}${fromRank}${toLetter}${toRank}`;
+    }
+
     
 
     /* function drawBoard() {
@@ -474,6 +513,8 @@
       const row = parseInt(cell.dataset.row);
       const col = parseInt(cell.dataset.col);
       const piece = board[row][col];
+      const initialfEN = generateFENFromBoard(board, currentTurn === 'white' ? 'w' : 'b');
+      console.log("inital_fen: "+ initialfEN);
 
       if (selectedCell) {
         const fromRow = parseInt(selectedCell.dataset.row);
@@ -488,42 +529,57 @@
         currentTurn = currentTurn === "white" ? "black" : "white";
 
         // If we have a selected piece and are making a move
-  // const fromRow = selectedCell.row;
-  // const fromCol = selectedCell.col;
-  
-  // Create a temporary board to generate the new FEN
-  const tempBoard = JSON.parse(JSON.stringify(board));
-  // tempBoard[row][col] = tempBoard[fromRow][fromCol]; // Move piece
-  // tempBoard[fromRow][fromCol] = ""; // Clear original position
-  
-  // Generate the new FEN
-  const newFEN = generateFENFromBoard(tempBoard, currentTurn === 'white' ? 'b' : 'w');
-  
-  // Send move to server
-  socket.send(JSON.stringify({
-    type: 'move',
-    gameId: currentGameId,
-    fen: newFEN,
-    client: playerId,
-    clientTime: Date.now()
-  }));
-  
-  // Clear selection
-  selectedCell = null;
-  //we would draw when we get the broadcast from the server...
-  // drawBoard();
-        // drawBoard();
-        // let newFEN = updateFENDisplay();
+        // const fromRow = selectedCell.row;
+        // const fromCol = selectedCell.col;
+        
+        // Create a temporary board to generate the new FEN
+        const tempBoard = JSON.parse(JSON.stringify(board));
+        // tempBoard[row][col] = tempBoard[fromRow][fromCol]; // Move piece
+        // tempBoard[fromRow][fromCol] = ""; // Clear original position
+        
+        // Generate the new FEN
+        const newFEN = generateFENFromBoard(tempBoard, currentTurn === 'white' ? 'b' : 'w');
+        // console.log('the row: '+row + "col: "+col);
+        let move = coordsToChessMove(fromRow, fromCol, row, col);
+        // Send move to server
+        socket.send(JSON.stringify({
+          type: 'move',
+          gameId: currentGameId,
+          fen: newFEN,
+          move: move,
+          initalfen: initialfEN,
+          client: playerId,
+          clientTime: Date.now(),
+          signature: null
+        }));
 
-        // // Ask backend for best move
         // // Send move to server
         // socket.send(JSON.stringify({
-        //     type: 'move',
-        //     gameId: currentGameId,
-        //     fen: newFEN,
-        //     client: playerId,
-        //     clientTime: Date.now()
+        //   type: 'move',
+        //   gameId: currentGameId,
+        //   fen: newFEN,
+        //   move: move,
+        //   initalfen: initialfEN,
+        //   client: playerId,
+        //   clientTime: Date.now()
         // }));
+        
+        // Clear selection
+        selectedCell = null;
+        //we would draw when we get the broadcast from the server...
+        // drawBoard();
+              // drawBoard();
+              // let newFEN = updateFENDisplay();
+
+              // // Ask backend for best move
+              // // Send move to server
+              // socket.send(JSON.stringify({
+              //     type: 'move',
+              //     gameId: currentGameId,
+              //     fen: newFEN,
+              //     client: playerId,
+              //     clientTime: Date.now()
+              // }));
 
       } else if (piece !== "") {
         selectedCell = cell;
@@ -582,7 +638,9 @@ function generateFENFromBoard(boardState, nextTurn) {
     createGameBtn.addEventListener('click', () => {
       socket.send(JSON.stringify({
         type: 'create',
-        client: playerId
+        // client: playerId,
+        walletAddress: playerId,
+        signature: null //placholder for the signature to confirm ownership of wallet address
       }));
     });
 
@@ -593,7 +651,9 @@ function generateFENFromBoard(boardState, nextTurn) {
       socket.send(JSON.stringify({
         type: 'join',
         gameId,
-        client: playerId
+        // client: playerId,
+        walletAddress: playerId,
+        signature: null //placholder for the signature to confirm ownership of wallet address
       }));
     });
 
@@ -621,6 +681,7 @@ function generateFENFromBoard(boardState, nextTurn) {
     connectWebSocket();
     loadBoardFromFEN('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
   });
+
 </script>
 </body>
 </html>

@@ -579,7 +579,8 @@ async function processMove(gameId, fen, client, clientTime) {
 
       let d_level = (!level) ? 16 : level;
     //   let stockfishPath = "chess-engine/Stockfish-sf_16/src/stockfish";
-      let stockfishPath = "chess-engine/Stockfish-sf_"+toString(d_level)+"/src/stockfish";
+    //   let stockfishPath = "chess-engine/Stockfish-sf_"+toString(d_level)+"/src/stockfish";
+    let stockfishPath = `chess-engine/Stockfish-sf_${gameId}/src/stockfish`;
 
       // Validate FEN format
       if (!/^([rnbqkpRNBQKP1-8]+\/){7}[rnbqkpRNBQKP1-8]+ [bw] (-|K?Q?k?q?) (-|[a-h][36]) \d+ \d+$/.test(fen)) {
