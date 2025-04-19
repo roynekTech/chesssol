@@ -19,15 +19,23 @@ All messages must be JSON objects with a `type` field indicating the message typ
 
 **Request:**
 ```json
+// Minimal (non-betting)
 {
   "type": "create",
-  "side": "w|b|random",
-  "duration": 300000,
-  "isBetting": false,
-  "transactionId": "tx123...",
-  "playerAmount": 0.1,
   "walletAddress": "0x123..."
 }
+
+// Full (betting)
+{
+  "type": "create",
+  "side": "w",
+  "duration": 600000, // default to 300000 - 5 mins
+  "isBetting": true,
+  "transactionId": "tx123...",
+  "playerAmount": 0.5,
+  "walletAddress": "0x123..."
+}
+
 ```
 
 **Response (Success):**
@@ -38,7 +46,7 @@ All messages must be JSON objects with a `type` field indicating the message typ
   "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
   "color": "w",
   "isBetting": false,
-  "playerAmount": 0.1,
+  "playerAmount": null,
   "nonce": "Sign this message..."
 }
 ```
@@ -59,13 +67,23 @@ All messages must be JSON objects with a `type` field indicating the message typ
 
 **Request:**
 ```json
+
+// Non-betting
+{
+  "type": "join",
+  "gameId": "uuid123",
+  "walletAddress": "0x123..."
+}
+
+// Betting
 {
   "type": "join",
   "gameId": "uuid123",
   "walletAddress": "0x123...",
-  "transactionId": "tx123...",
-  "playerAmount": 0.1
+  "transactionId": "tx456...",
+  "playerAmount": 0.5
 }
+
 ```
 
 **Response (Success):**
