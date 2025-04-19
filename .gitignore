@@ -8,3 +8,4 @@ backend/chess-engine/
 chess-engine/
 chess-engine/stockfish*
 .htaccess
+*.log
