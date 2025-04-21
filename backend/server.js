@@ -44,14 +44,11 @@ app.post(MAIN_DIR+'/get_best_move', gameHandlers.getBestMoves); // Get legal mov
 
 
 // Start HTTP server
-// const httpServer = app.listen(port, () => {
-//     console.log('HTTP server running on http://localhost:' + port);
-// });
-
-console.log('Base dir:', __dirname);
-app.listen(port, () => {
-    console.log(`HTTP server running on http://localhost: ${port}`);
+const httpServer = app.listen(port, () => {
+    console.log('HTTP server running on http://localhost:' + port);
 });
+console.log('Base dir:', __dirname);
+
 
 // const httpServer = app.listen(8080, '0.0.0.0', () => {
 //     console.log(`Server running on port 8080`);
