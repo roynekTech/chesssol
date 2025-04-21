@@ -45,6 +45,9 @@ pm2 start chesssol-backend/backend/server.js --name chesssol-app
 pm2 save
 pm2 startup
 
+pm2 start chesssol/backend/server.js --name chesssol-app
+pm2 save
+pm2 startup
 
 sudo apt install nginx -y
 sudo nano /etc/nginx/sites-available/chesssol

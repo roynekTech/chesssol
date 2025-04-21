@@ -38,3 +38,7 @@ scp ./package.json root@192.168.1.100:/var/www/project/
 
 🔐 
 scp -i ~/.ssh/my-key.pem ./package.json username@host:/destination/
+
+
+cp -r -f ./backend/ ./new-backend/
+mv -f source_folder/* destination_folder/

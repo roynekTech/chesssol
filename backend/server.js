@@ -6,7 +6,9 @@ const { v4: uuidv4 } = require('uuid');
 const { getDbConnection } = require('./db');
 
 // const app = express();
-const port = 8080; //3000;
+// const port = 8080; //3000;
+const port = process.env.PORT || 3000;
+
 
 // game_setup.js 
 const WebSocket = require('ws');
@@ -42,9 +44,15 @@ app.post(MAIN_DIR+'/get_best_move', gameHandlers.getBestMoves); // Get legal mov
 
 
 // Start HTTP server
-const httpServer = app.listen(port, () => {
-    console.log('HTTP server running on http://localhost:' + port);
+// const httpServer = app.listen(port, () => {
+//     console.log('HTTP server running on http://localhost:' + port);
+// });
+
+console.log('Base dir:', __dirname);
+app.listen(port, () => {
+    console.log(`HTTP server running on http://localhost: ${port}`);
 });
+
 // const httpServer = app.listen(8080, '0.0.0.0', () => {
 //     console.log(`Server running on port 8080`);
 // });
