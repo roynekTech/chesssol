@@ -586,12 +586,12 @@ async function processMove(gameId, fen, client, clientTime) {
     let stockfishPath;
 
     // Try relative path first
-    const relativePath = path.join(__dirname, `../chess-engine/Stockfish_${d_level}/src/stockfish`);
+    const relativePath = path.join(__dirname, `../chess-engine/Stockfish-sf_${d_level}/src/stockfish`);
     if (fs.existsSync(relativePath)) {
         stockfishPath = relativePath;
     } else {
     // Fall back to absolute path
-        stockfishPath = `/home/azureuser/chesssol-backend/backend/chess-engine/Stockfish_${d_level}/src/stockfish`;
+        stockfishPath = `/home/azureuser/chesssol-backend/backend/chess-engine/Stockfish-sf_${d_level}/src/stockfish`;
     }
 
       // Validate FEN format
