@@ -26,7 +26,9 @@
 //   query,
 //   pool
 // };
-require('dotenv').config();
+// require('dotenv').config();
+require('dotenv').config({ path: __dirname + '/.env' });
+
 const mysql = require('mysql2/promise');
 
 const pool = mysql.createPool({
