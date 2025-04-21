@@ -4,7 +4,8 @@ const { getDbConnection } = require('./db');
 const { Chess } = require('chess.js');
 const { v4: uuidv4 } = require('uuid');
 const { spawn } = require('child_process');
-// const path = require('path');
+const path = require('path');
+const fs = require('fs');
 
 function assignRandomSide() {
   return Math.random() < 0.5 ? 'w' : 'b';
@@ -584,11 +585,13 @@ async function processMove(gameId, fen, client, clientTime) {
     // let stockfishPath = `chess-engine/Stockfish-sf_${d_level}/src/stockfish`;
     let stockfishPath;
 
-    if (__dirname.endsWith('/chesssol/backend')) {
-        stockfishPath = `chess-engine/Stockfish-sf_${d_level}/src/stockfish`;
+    // Try relative path first
+    const relativePath = path.join(__dirname, `../chess-engine/Stockfish_${d_level}/src/stockfish`);
+    if (fs.existsSync(relativePath)) {
+        stockfishPath = relativePath;
     } else {
-        //use full path to access it...
-        stockfishPath = `/home/azureuser/chess-engine/Stockfish-sf_${d_level}/src/stockfish`;
+    // Fall back to absolute path
+        stockfishPath = `/home/azureuser/chesssol-backend/backend/chess-engine/Stockfish_${d_level}/src/stockfish`;
     }
 
       // Validate FEN format

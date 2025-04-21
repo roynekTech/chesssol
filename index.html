@@ -94,8 +94,10 @@
       network: networkParam,
       get bestMoveUrl() {
         return (this.server === "localnet" || this.server === "localhost")
-          ? "http://localhost:3000/chesssol/backend/get_best_move"
-          : "https://roynek.com/chesssol/backend/get_best_move";
+          ? "http://20.208.128.130:3000/chesssol/backend/get_best_move"
+          : "http://20.208.128.130:3000/chesssol/backend/get_best_move";
+
+          // : "https://roynek.com/chesssol/backend/get_best_move";
       }
     };
 
