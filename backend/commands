@@ -27,3 +27,14 @@ https://github.com/official-stockfish/Stockfish/archive/refs/tags/sf_11.zip
 https://github.com/official-stockfish/Stockfish/archive/refs/tags/sf_10.zip
 https://github.com/official-stockfish/Stockfish/archive/refs/tags/sf_9.zip
 https://github.com/official-stockfish/Stockfish/archive/refs/tags/sf_7.zip
+
+
+
+
+#################################################
+
+scp /path/to/local/file username@192.168.1.100:/path/on/remote/
+scp ./package.json root@192.168.1.100:/var/www/project/
+
+🔐 
+scp -i ~/.ssh/my-key.pem ./package.json username@host:/destination/
