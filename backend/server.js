@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors'); // Add this line
 const { spawn } = require('child_process');
 const path = require('path');
-const { v4: uuidv4 } = require('uuid');
+const { v4: uuidv4, validate } = require('uuid');
 const { getDbConnection } = require('./db');
 
 // const app = express();
@@ -127,7 +127,10 @@ wss.on('connection', (ws) => {
             handleReconnect(ws, data);
             break;
         case 'resign':
-            handleResign(ws, msg);
+            handleResign(ws, data);
+            break;
+        case 'draw':
+            handleStale(ws, data);
             break;
         default:
           ws.send(JSON.stringify({ error: 'Invalid message type' }));
@@ -223,7 +226,7 @@ function handleJoin(ws, data) {
       }));
     }
     
-    game.players.add(ws);
+    game.players.push(ws);
     game.status = 'active'; //running
     
     // Notify both players
@@ -352,9 +355,17 @@ function handleJoin(ws, data) {
         }
     }
 
+    // Mkaing wallets required
+    if (!data.walletAddress) {
+      return ws.send(JSON.stringify({
+          type: 'error',
+          message: 'You need to include a User Wallet'
+      }));
+  }
+
     // Create game object
     const game = {
-        players: new Set([ws]),
+        players: [ws],
         viewers: new Set(),
         chess,
         status: 'waiting',
@@ -362,12 +373,21 @@ function handleJoin(ws, data) {
         isBetting: isBetting,
         transactionIds: isBetting ? [data.transactionId] : [],
         playerAmount: isBetting ? data.playerAmount : null,
-        wallets: isBetting ? [data.walletAddress] : [],
+        // wallets: isBetting ? [data.walletAddress] : [],
+        wallets: [data.walletAddress],
         creator: {
-            ws: ws,
+            // ws: ws,
             side: assignedColor,
-            walletAddress: data.walletAddress || null
+            walletAddress: data.walletAddress || null,
+            timeLeft: duration
         },
+        opponent:{
+            // ws: null,
+            side: assignedColor === 'w' ? 'b' : 'w',
+            walletAddress: null,
+            timeLeft: duration
+        },
+        stale: 0,
         createdAt: Date.now()
     };
     
@@ -398,6 +418,8 @@ function handleJoin(ws, data) {
   // Updated handleJoin with betting support
   async function handleJoin(ws, data) {
     const game = games.get(data.gameId);
+    let isBetting = game.isBetting;
+    
     if (!game) {
       return ws.send(JSON.stringify({
         type: 'error',
@@ -448,7 +470,9 @@ function handleJoin(ws, data) {
     game.nonce = game_nonce;
   
     // Add player
-    game.players.add(ws);
+    // game.players.add(ws);
+    game.players.push(ws);
+    game.opponent.walletAddress = data.walletAddress;
     game.status = 'active';
     
     // Prepare join data
@@ -475,14 +499,15 @@ function handleJoin(ws, data) {
     players[0].send(JSON.stringify({
       ...joinData,
       color: game.creator.side,
-      nonce: game_nonce
+      nonce: game_nonce,
+      duration: game.duration
     }));
     
     players[1].send(JSON.stringify({
       ...joinData,
       color: new_opp,
-      nonce: game_nonce
-
+      nonce: game_nonce,
+      duration: game.duration
     }));
 
 
@@ -501,8 +526,8 @@ function handleJoin(ws, data) {
             bet_status: isBetting,
             move_history: JSON.stringify(["rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"]), // Initial FEN
             start_date: new Date(),
-            duration: duration,
-            current_fen: chess.fen()
+            duration: game.duration,
+            current_fen: JSON.stringify(["rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"]) // same thing like the move_history above...
         };
 
         if (isBetting) {
@@ -520,7 +545,7 @@ function handleJoin(ws, data) {
         );
         
         connection.release();
-        console.log(`Game ${gameId} saved to database`);
+        console.log(`Game ${data.gameId} saved to database`);
     } catch (dbError) {
         console.error('Database save failed:', dbError);
         // Continue even if DB fails - game exists in memory
@@ -568,8 +593,31 @@ function handleJoin(ws, data) {
     }
   } */
 
+    async function validateConnection(ws, game, walletAddress) {
+          let state = game.creator.walletAddress === walletAddress;
+          let user = (state) ? game.creator : game.opponent;
+          let user_ws = (state) ? game.players[0] : game.players[1];
+          console.log(`On the Matter: ${user.side} ${game.chess.turn()}`);
+
+          if(user.side !== game.chess.turn()){
+            
+            return ws.send(JSON.stringify({
+                type: 'error',
+                message: `It is not your turn to move. It's ${game.chess.turn()} to move.`
+            }));
+          }
+
+          if(user_ws !== ws){
+              return ws.send(JSON.stringify({
+                  type: 'error',
+                  message: 'Move verification failed - WebSocket mismatch'
+              }));
+          }
+      }
+
+
     
-    async function handleMove(ws, { gameId, fen, client, move, initialFen }) {
+    async function handleMove(ws, { gameId, fen, move, initialFen, walletAddress, clientTime, signature }) {
         const game = games.get(gameId);
         if (!game) {
             return ws.send(JSON.stringify({
@@ -580,7 +628,18 @@ function handleJoin(ws, data) {
     
         try {
             // 1. Verify move
-            // const verificationChess = new Chess(initialFen);
+            const verificationChess = new Chess();
+            // verificationChess.load(initialFen);
+
+            // // if(verificationChess.turn() !== game.chess.turn() && fen.split(' ')[1] !== game.chess.turn()){
+            //   console.log(verificationChess.turn(), game.chess.turn());
+            //   if(verificationChess.turn() !== game.chess.turn()){ // if the last turn to play belows to this player..
+            //       return ws.send(JSON.stringify({
+            //           type: 'error',
+            //           message: 'Move verification failed - turn mismatch'
+            //       }));
+            //   }
+
             // verificationChess.move(move);
             // const computedFen = verificationChess.fen();
             
@@ -590,7 +649,50 @@ function handleJoin(ws, data) {
             //         message: 'Move verification failed - FEN mismatch'
             //     }));
             // }
-    
+
+            console.log('Initial FEN:', initialFen);
+            console.log('Current FEN:', game.chess.fen());
+
+            if( initialFen !== game.chess.fen()){
+                return ws.send(JSON.stringify({
+                    type: 'error',
+                    message: 'Move verification failed - FEN mismatch'
+                }));
+            }
+
+            
+          //   creator: {
+          //     // ws: ws,
+          //     side: assignedColor,
+          //     walletAddress: data.walletAddress || null,
+          //     timeLeft: duration
+          // },
+          // opponent:{
+          //     // ws: null,
+          //     side: assignedColor === 'w' ? 'b' : 'w',
+          //     walletAddress: null,
+          //     timeLeft: duration
+          // },
+            let state = game.creator.walletAddress === walletAddress;
+            let user = (state) ? game.creator : game.opponent;
+            let user_ws = (state) ? game.players[0] : game.players[1];
+            console.log(`On the Matter: ${user.side} ${game.chess.turn()}`);
+
+            if(user.side !== game.chess.turn()){
+              
+              return ws.send(JSON.stringify({
+                  type: 'error',
+                  message: `It is not your turn to move. It's ${game.chess.turn()} to move.`
+              }));
+            }
+
+            if(user_ws !== ws){
+                return ws.send(JSON.stringify({
+                    type: 'error',
+                    message: 'Move verification failed - WebSocket mismatch'
+                }));
+            }
+
             // 2. Update game state
             game.chess.load(fen);
             const currentFen = game.chess.fen();
@@ -625,7 +727,7 @@ function handleJoin(ws, data) {
                 console.error('DB update failed:', dbError);
             }
     
-            console.log(`Move processed for ${gameId} by ${client}`);
+            console.log(`Move processed for ${gameId} by ${walletAddress}`);
     
         } catch (e) {
             console.error('Move error:', e);
@@ -703,7 +805,7 @@ function handleJoin(ws, data) {
     game.players.forEach(player => {
       player.send(JSON.stringify({
         type: 'chat',
-        from: sender,
+        sender: sender,
         message
       }));
     });
@@ -711,7 +813,7 @@ function handleJoin(ws, data) {
     console.log(`Chat in ${gameId}: ${message}`);
   }
 
-  function handleReconnect(ws, { gameId, playerId }) {
+  function handleReconnect(ws, { gameId, walletAddress, signature }) {
     const game = games.get(gameId);
     if (!game) {
       return ws.send(JSON.stringify({
@@ -721,8 +823,12 @@ function handleJoin(ws, data) {
     }
   
     // Simple version - just find by playerId (wallet address)
-    const player = game.players.get(playerId);
-    if (!player) {
+    // const player = game.players.get(playerId);
+    // const player = game.wallet.get(walletAddress);
+    // 9de0b52a-9950-40a8-ad71-6d951c165a36
+    const found = game.wallets.find(addr => addr === walletAddress);
+
+    if (!found) {
       return ws.send(JSON.stringify({
         type: 'error',
         message: 'Not originally part of this game'
@@ -730,19 +836,25 @@ function handleJoin(ws, data) {
     }
   
     // Update the WebSocket reference
-    player.ws = ws;
+    // game.ws = ws;
+    if(game.wallets[0] === walletAddress){
+      game.players[0] = ws;
+    }else{
+      game.players[1] = ws;
+    }
   
     ws.send(JSON.stringify({
       type: 'reconnected',
       fen: game.chess.fen(),
-      color: player.color,
+      // color: player.color,
+      turn: game.chess.turn(),
       status: game.status
     }));
   
-    console.log(`Player ${playerId} reconnected`);
+    console.log(`Player ${walletAddress} reconnected`);
   }
 
-  function handleResign(ws, { gameId, playerId }) {
+  function handleResign(ws, { gameId, walletAddress }) {
     const game = games.get(gameId);
     if (!game) {
       return ws.send(JSON.stringify({
@@ -750,32 +862,140 @@ function handleJoin(ws, data) {
         message: 'Game not found'
       }));
     }
+
+    if(!walletAddress){
+      return ws.send(JSON.stringify({
+        type: 'error',
+        message: 'WalletAddress is required in resigning games.'
+      }));
+    }
+
+    if(walletAddress!==game.creator.walletAddress && walletAddress!==game.opponent.walletAddress){
+      return ws.send(JSON.stringify({
+        type: 'error',
+        message: 'You are not a player in this game.'
+      }));
+    }
   
     // Notify both players
-    game.players.forEach(player => {
-      if (player.ws.readyState === WebSocket.OPEN) {
-        player.ws.send(JSON.stringify({
-          type: 'gameEnded',
-          winner: player.ws === ws ? 'opponent' : playerId,
-          reason: 'resignation'
-        }));
-      }
-    });
+    // game.players.forEach(player => {
+    //   if (player.ws.readyState === WebSocket.OPEN) {
+    //     player.ws.send(JSON.stringify({
+    //       type: 'gameEnded',
+    //       winner: player.ws === ws ? 'opponent' : playerId,
+    //       reason: 'resignation'
+    //     }));
+    //   }
+    // });
+
+    let win1 = (game.players[0] === ws) ? game.players[1] : game.players[0] ;
+    let win2 = (game.wallets[0] === walletAddress) ? game.wallets[1] : game.wallets[0] ;
+    // if(game.players[0] === ws){
+    //   winner = game.players[1];
+    // }
+
+    let msg = {
+      type: 'gameEnded',
+      // winner: game.players[0] ===  'opponent' : playerId,
+      winner:  win2,
+      reason: 'resignation'
+    };
+    broadcastToAll(game, msg);
   
     // Clean up game
-    clearTimeout(game.timeout);
-    // games.delete(gameId);
+    // clearTimeout(game.timeout);
+    games.delete(gameId);
+    //TODO, update the game state in the db and make possible pay-outs
+
     console.log(`Game ${gameId} ended by resignation`);
   }
 
-  function broadcastToAll(game, message) {
-    const allParticipants = new Set([...game.players, ...game.viewers]);
+  async function handleStale(ws, { gameId, walletAddress }) {
+    const game = games.get(gameId);
+    if (!game) {
+      return ws.send(JSON.stringify({
+        type: 'error',
+        message: 'Game not found'
+      }));
+    }
+
+    if(!walletAddress){
+      return ws.send(JSON.stringify({
+        type: 'error',
+        message: 'WalletAddress is required in offering draw.'
+      }));
+    }
+
+    if(walletAddress!==game.creator.walletAddress && walletAddress!==game.opponent.walletAddress){
+      return ws.send(JSON.stringify({
+        type: 'error',
+        message: 'You are not a player in this game.'
+      }));
+    }
+  
+    game.stale = game.stale + 1;
+    // let win1 = (game.players[0] === ws) ? game.players[1] : game.players[0] ;
+    // let win2 = (game.wallets[0] === walletAddress) ? game.wallets[1] : game.wallets[0] ;
+
+    if (game.stale >= 2){
+      let msg = {
+        type: 'gameEnded',
+        // winner: game.players[0] ===  'opponent' : playerId,
+        winner:  null,
+        reason: 'stalemate',
+        
+      };
+      
+      broadcastToAll(game, msg);
+      games.delete(gameId);
+
+    }else{
+      let msg = {
+        type: 'chat',
+        // winner: game.players[0] ===  'opponent' : playerId,
+        message:  "offering stalemate",
+        // reason: 'offered stalemate'
+        sender: walletAddress
+      };
+
+      broadcastToAll(game, msg);
+    }
+    
+
+    
+  
+    // Clean up game
+    // clearTimeout(game.timeout);
+    // games.delete(gameId);
+    //TODO, update the game state in the db and make possible pay-outs
+
+    console.log(`Game ${gameId} ended by resignation`);
+  }
+
+
+  // function broadcastToAll(game, message) {
+  //   const allParticipants = new Set([...game.players, ...game.viewers]);
+  //   allParticipants.forEach(participant => {
+  //     if (participant.readyState === WebSocket.OPEN) {
+  //       participant.send(JSON.stringify(message));
+  //     }
+  //   });
+  // }
+
+  function broadcastToAll(game, message, type=false) {
+    const allParticipants = [...game.players, ...game.viewers];
     allParticipants.forEach(participant => {
       if (participant.readyState === WebSocket.OPEN) {
         participant.send(JSON.stringify(message));
       }
     });
+
+
+    // if(end){
+    //   games.delete(game);
+    // }
   }
+  
 
 
   function handlePairRequest(ws, data) {
@@ -971,136 +1191,3 @@ function generateNonce() {
 
 console.log('Chess WebSocket server running on ws://localhost:'+port);
 
-
-/* // Absolute path to Stockfish
-// const stockfishPath = "chess-engine/stockfish_16/stockfish-ubuntu-x86-64-modern";
-const stockfishPath = "chess-engine/Stockfish-sf_16/src/stockfish";
-
-let MAIN_DIR = "/chesssol/backend";
-
-
-// Custom CORS middleware
-app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', 'http://localhost');
-    res.header('Access-Control-Allow-Methods', 'GET, POST');
-    res.header('Access-Control-Allow-Headers', 'Content-Type');
-    
-    // Handle preflight requests
-    if (req.method === 'OPTIONS') {
-      return res.sendStatus(200);
-    }
-    next();
-  });
-
-
-app.use(express.json());
-
-function getBestMove(fen, callback, stockfishPath) {
-    console.log(`Attempting to launch Stockfish from: ${stockfishPath}`);
-    
-    const stockfish = spawn(stockfishPath);
-    let bestMove = null;
-    let isReady = false;
-    let timeout;
-
-    // Set a timeout for the entire operation
-    timeout = setTimeout(() => {
-        if (!bestMove) {
-            stockfish.kill();
-            callback(new Error('Stockfish calculation timed out (10 seconds)'));
-        }
-    }, 10000);
-
-    stockfish.on('error', (err) => {
-        clearTimeout(timeout);
-        console.error('Stockfish spawn error:', err);
-        callback(new Error(`Failed to launch Stockfish: ${err.message}`));
-    });
-
-    stockfish.stdin.write('uci\n');
-    stockfish.stdin.write(`setoption name Skill Level value 20\n`);
-    stockfish.stdin.write('isready\n');
-
-    let buffer = '';
-    stockfish.stdout.on('data', (data) => {
-        buffer += data.toString();
-        const lines = buffer.split('\n');
-        buffer = lines.pop(); // Save incomplete line for next chunk
-
-        for (let line of lines) {
-            line = line.trim();
-            if (!line) continue;
-
-            console.log('Stockfish:', line); // Debug logging
-            
-            if (line.includes('readyok') && !isReady) {
-                isReady = true;
-                console.log(`Setting position with FEN: ${fen}`);
-                stockfish.stdin.write(`position fen ${fen}\n`);
-                stockfish.stdin.write(`go depth 18\n`);
-            }
-            
-            if (line.startsWith('bestmove')) {
-                const match = line.match(/bestmove (\w+)/);
-                if (match?.[1]) {
-                    clearTimeout(timeout);
-                    bestMove = match[1];
-                    console.log(`Found best move: ${bestMove}`);
-                    stockfish.stdin.write('quit\n');
-                    return callback(null, bestMove);
-                }
-            }
-        }
-    });
-
-    stockfish.stderr.on('data', (data) => {
-        console.error('Stockfish stderr:', data.toString());
-    });
-
-    stockfish.on('close', (code) => {
-        clearTimeout(timeout);
-        if (!bestMove) {
-            console.error(`Stockfish exited with code ${code} before returning best move`);
-            console.error(`Last buffer content: ${buffer}`);
-            callback(new Error(`Stockfish process failed (code ${code})`));
-        }
-    });
-}
-
-// Serve "Hello World" at /sonic_universe/client/sonic_planet/api/
-
-
-app.post(MAIN_DIR+'/get_best_move', (req, res) => {
-    const { fen, game_id, level } = req.body;
-    
-    if (!fen || !game_id) {
-        return res.status(400).json({ error: "Missing fen or game_id" });
-    }
-
-    // Validate FEN format
-    if (!/^([rnbqkpRNBQKP1-8]+\/){7}[rnbqkpRNBQKP1-8]+ [bw] (-|K?Q?k?q?) (-|[a-h][36]) \d+ \d+$/.test(fen)) {
-        return res.status(400).json({ error: "Invalid FEN format" });
-    }
-
-    getBestMove(fen, (err, move) => {
-        if (err) {
-            console.log('Problem FEN:', fen);
-            console.error('Error in getBestMove:', err);
-            return res.status(500).json({ 
-                error: 'Engine error',
-                details: err.message,
-                fen: fen
-            });
-        }
-        res.json({ game_id, fen, best_move: move });
-    }, stockfishPath);
-});
-
-app.listen(port, () => {
-    console.log(`Server running on port ${port}`);
-    console.log(`Stockfish path configured as: ${stockfishPath}`);
-    // Verify Stockfish is executable
-    require('fs').access(stockfishPath, require('fs').constants.X_OK, (err) => {
-        console.log(err ? 'Stockfish is NOT executable' : 'Stockfish is executable');
-    });
-}); */

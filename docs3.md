@@ -25,7 +25,15 @@ All messages must be JSON objects with a `type` field indicating the message typ
   "walletAddress": "0x123..."
 }
 
-// Full (betting)
+//with parameters
+{
+  "type": "create",
+  "walletAddress": "0x123...",
+  "side": "w",
+  "duration": 600000 // default to 300000 - 5 mins
+}
+
+// Full (betting): isBetting, transactionId, playerAmount
 {
   "type": "create",
   "side": "w",
@@ -47,7 +55,8 @@ All messages must be JSON objects with a `type` field indicating the message typ
   "color": "w",
   "isBetting": false,
   "playerAmount": null,
-  "nonce": "Sign this message..."
+  "nonce": "Sign this message...",
+  "duration": 300000,
 }
 ```
 
@@ -98,7 +107,8 @@ All messages must be JSON objects with a `type` field indicating the message typ
     "playerAmount": 0.1,
     "transactionIds": ["tx123...", "tx456..."]
   },
-  "nonce": "Sign this message..."
+  "nonce": "Sign this message...",
+  "duration": 300000
 }
 ```
 
@@ -122,11 +132,8 @@ All messages must be JSON objects with a `type` field indicating the message typ
   "type": "move",
   "gameId": "uuid123",
   "fen": "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1",
-  "client": "player1",
-  "move": {
-    "from": "e2",
-    "to": "e4"
-  },
+  "walletAddress": "player1",
+  "move": "e2e4",
   "initialFen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 }
 ```
@@ -138,10 +145,7 @@ All messages must be JSON objects with a `type` field indicating the message typ
   "fen": "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1",
   "turn": "b",
   "valid": true,
-  "lastMove": {
-    "from": "e2",
-    "to": "e4"
-  },
+  "lastMove": "",
   "nonce": "Sign this message..."
 }
 ```
@@ -237,7 +241,7 @@ All messages must be JSON objects with a `type` field indicating the message typ
 ```json
 {
   "type": "chat",
-  "from": "player1",
+  "sender": "player1",
   "message": "Good move!"
 }
 ```

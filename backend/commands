@@ -42,3 +42,6 @@ scp -i ~/.ssh/my-key.pem ./package.json username@host:/destination/
 
 cp -r -f ./backend/ ./new-backend/
 mv -f source_folder/* destination_folder/
+
+
+cp -r -f chesssol-backend/backend/chess-engine/ chesssol/backend/chess-engine/
