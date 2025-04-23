@@ -45,3 +45,40 @@ mv -f source_folder/* destination_folder/
 
 
 cp -r -f chesssol-backend/backend/chess-engine/ chesssol/backend/chess-engine/
+
+
+#####################################################
+
+
+# let wsUrl = 'ws://localhost:3000/chesssol/backend/ws';
+
+let wsUrl = `ws://20.208.128.130:3000/chesssol/backend/ws`;
+let socket = new WebSocket(wsUrl);
+
+socket.addEventListener('open', () => {
+    console.log('Connected to game server');
+});
+
+socket.addEventListener('message', (event) => {
+    const data = JSON.parse(event.data);
+    console.log(data);
+});
+
+socket.addEventListener('close', () => {
+    console.log('Disconnected from server');
+});
+
+socket.addEventListener('error', (error) => {
+    console.log('WebSocket error: ' + error.message);
+});
+
+socket.send(JSON.stringify({
+    type: 'create',
+}));
+
+# socket.send(JSON.stringify({
+#     type: 'create',
+#     // client: playerId,
+#     walletAddress: playerId,
+#     signature: null //placholder for the signature to confirm ownership of wallet address
+# }));

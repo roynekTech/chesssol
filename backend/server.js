@@ -115,7 +115,7 @@ wss.on('connection', (ws) => {
           handleMove(ws, data);
           break;
         case 'listGames':
-          handleListGames(ws);
+          handleListGames(ws, data);
           break;
         case 'viewGame':
           handleViewGame(ws, data.gameId);
@@ -739,22 +739,26 @@ function handleJoin(ws, data) {
     }
 
 
-  function handleListGames(ws) {
-    const availableGames = Array.from(games.entries())
-      .filter(([_, game]) => game.status === 'waiting' || game.status === 'active')
-      .map(([gameId, game]) => ({
-        gameId,
-        status: game.status,
-        players: game.players.size,
-        viewers: game.viewers.size,
-        fen: game.chess.fen()
-      }));
-  
-    ws.send(JSON.stringify({
-      type: 'gameList',
-      games: availableGames
-    }));
-  }
+    function handleListGames(ws, data) {
+      const availableGames = Array.from(games.entries())
+        .filter(([_, game]) => game.status === 'waiting' || game.status === 'active')
+        .map(([gameId, game]) => ({
+          gameId,
+          status: game.status,
+          players: game.players.size,
+          viewers: game.viewers.size,
+          fen: game.chess.fen()
+        }));
+    
+      const msg2Send = {
+        type: 'gameList',
+        count: availableGames.length, // Number of games
+        games: availableGames
+      };
+    
+      ws.send(JSON.stringify(msg2Send));
+    }
+    
   
   function handleViewGame(ws, gameId) {
     const game = games.get(gameId);
@@ -769,7 +773,8 @@ function handleJoin(ws, data) {
     // Add to viewers (remove from players if they were there)
     // game.players.delete(ws);
     // Check if already a player in this game
-    if (game.players.has(ws)) {
+    // if (game.players.has(ws)) {
+    if (game.players.includes(ws)){ //using this instead. since it is an array and not a set/map
       return ws.send(JSON.stringify({
         type: 'error',
         message: 'You are already a player in this game'
