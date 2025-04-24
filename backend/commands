@@ -73,6 +73,12 @@ socket.addEventListener('error', (error) => {
 });
 
 socket.send(JSON.stringify({
+    type: 'listGames',
+}));
+
+
+
+socket.send(JSON.stringify({
     type: 'create',
 }));
 

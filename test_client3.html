@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Manual Chess Move Tracker</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/css/chessboard.min.css" />
+  <style>
+    body {
+      background-color: #121212;
+      color: white;
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-top: 20px;
+    }
+    #board {
+      width: 400px;
+      margin-bottom: 20px;
+    }
+    #info {
+      width: 90%;
+      max-width: 600px;
+      background: #1e1e1e;
+      padding: 10px 15px;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div id="board"></div>
+  <div id="info">Click and drag to make a move.</div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/1.0.0/chess.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/js/chessboard.min.js"></script>
+  <script>
+    const game = new Chess(); // starts with default FEN
+    const board = Chessboard('board', {
+      position: game.fen(),
+      draggable: true,
+      onDrop: onDropHandler,
+      onSnapEnd: () => {
+        board.position(game.fen());
+      }
+    });
+
+    function onDropHandler(source, target) {
+      const proposedMove = {
+        from: source,
+        to: target,
+        promotion: 'q' // always promote to queen (for pawns reaching end)
+      };
+
+      const currentFEN = game.fen(); // Save current FEN before the move
+      const move = game.move(proposedMove); // Try to apply the move
+
+      if (move === null) {
+        updateInfo(`❌ Invalid move from ${source} to ${target}`);
+        return 'snapback';
+      }
+
+      const newFEN = game.fen();
+
+      const details = {
+        move,
+        initialFEN: currentFEN,
+        proposedMove,
+        newFEN,
+        turn: game.turn() === 'w' ? 'White' : 'Black',
+        inCheck: game.in_check(),
+        inCheckmate: game.in_checkmate(),
+        inDraw: game.in_draw(),
+        gameOver: game.game_over()
+      };
+
+      updateInfo(renderDetails(details));
+    }
+
+    function renderDetails(details) {
+      return `
+        ✅ <strong>Valid Move:</strong> ${details.move.san} <br>
+        <strong>From:</strong> ${details.proposedMove.from} → <strong>To:</strong> ${details.proposedMove.to}<br>
+        <strong>Initial FEN:</strong> ${details.initialFEN}<br>
+        <strong>New FEN:</strong> ${details.newFEN}<br>
+        <strong>Next Turn:</strong> ${details.turn}<br>
+        <strong>In Check:</strong> ${details.inCheck} | 
+        <strong>Checkmate:</strong> ${details.inCheckmate}<br>
+        <strong>Draw:</strong> ${details.inDraw} | 
+        <strong>Game Over:</strong> ${details.gameOver}
+      `;
+    }
+
+    function updateInfo(html) {
+      document.getElementById('info').innerHTML = html;
+    }
+  </script>
+</body>
+</html>

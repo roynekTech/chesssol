@@ -562,6 +562,8 @@ function handleJoin(ws, data) {
         ...joinData,
         color: game.creator.side
       });
+
+      console.log("the game: ", game);
   
 
     
@@ -652,6 +654,7 @@ function handleJoin(ws, data) {
 
             console.log('Initial FEN:', initialFen);
             console.log('Current FEN:', game.chess.fen());
+            
 
             if( initialFen !== game.chess.fen()){
                 return ws.send(JSON.stringify({
