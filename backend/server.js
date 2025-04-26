@@ -4,6 +4,7 @@ const { spawn } = require('child_process');
 const path = require('path');
 const { v4: uuidv4, validate } = require('uuid');
 const { getDbConnection } = require('./db');
+const { transferSol } = require('./solanaUtils');
 
 // const app = express();
 // const port = 8080; //3000;
@@ -131,6 +132,9 @@ wss.on('connection', (ws) => {
             break;
         case 'draw':
             handleStale(ws, data);
+            break;
+        case 'checkmate':
+            handleCheckmate(ws, data);
             break;
         default:
           ws.send(JSON.stringify({ error: 'Invalid message type' }));
@@ -393,7 +397,50 @@ function handleJoin(ws, data) {
     
     // Store in memory
     games.set(gameId, game);
+
+
+    // Set a timeout to auto-end the game after duration * 3
+    game.timeout = setTimeout(async () => {
+      const activeGame = games.get(gameId);
+      if (!activeGame) return;
     
+      broadcastToAll(activeGame, {
+        type: 'gameEnded',
+        reason: 'timeout',
+        message: 'Game ended by Automatic General Game Timer.'
+      });
+      
+      if(game.status === 'active'){
+        let winnerColor = activeGame.chess.turn() === 'w' ? 'b' : 'w';
+        await cleanUpAndPayments(game, winnerColor, 'abandoned');
+      }else{
+        // await updateGameState('ended', gameId);
+        // games.delete(gameId);
+        await cleanUpAndPayments(game, '', 'aborted');
+        console.log(`Game ${gameId} ended automatically after ${duration * 3}ms`);
+      }
+      
+    
+      console.log(`Game ${gameId} ended automatically after ${duration * 3}ms`);
+    }, duration * 3);
+    
+    // game.timeout = setTimeout(() => {
+    //   const activeGame = games.get(gameId);
+    //   if (!activeGame) return;
+
+    //   broadcastToAll(activeGame, {
+    //     type: 'gameEnded',
+    //     reason: 'timeout',
+    //     message: 'Game ended by Automatic General Game Timer.'
+    //   });
+
+    //   // games.delete(gameId);
+    //   cleanUpAndPayments(game, winnerColor, 'checkmate');
+
+
+    //   console.log(`Game ${gameId} ended automatically after ${duration * 3}ms`);
+    // }, duration * 3);
+        
         
     // Respond to client
     ws.send(JSON.stringify({
@@ -411,6 +458,7 @@ function handleJoin(ws, data) {
         playerAmount: game.playerAmount,
         creatorWallet: game.creator.walletAddress 
     });
+    
 }
   
 
@@ -473,7 +521,8 @@ function handleJoin(ws, data) {
     // game.players.add(ws);
     game.players.push(ws);
     game.opponent.walletAddress = data.walletAddress;
-    game.status = 'active';
+    // game.status = 'active';
+    game.status = 'joined';
     
     // Prepare join data
     const joinData = {
@@ -563,7 +612,7 @@ function handleJoin(ws, data) {
         color: game.creator.side
       });
 
-      console.log("the game: ", game);
+      // console.log("the game: ", game);
   
 
     
@@ -625,6 +674,13 @@ function handleJoin(ws, data) {
             return ws.send(JSON.stringify({
                 type: 'error',
                 message: 'Game not found'
+            }));
+        }
+
+        if( !walletAddress ){
+            return ws.send(JSON.stringify({
+                type: 'error',
+                message: 'You need a walletAddress for this endpoint.'
             }));
         }
     
@@ -699,6 +755,7 @@ function handleJoin(ws, data) {
             // 2. Update game state
             game.chess.load(fen);
             const currentFen = game.chess.fen();
+            
 
             // update nonce
             let ch_nonce = generateNonce();
@@ -729,6 +786,24 @@ function handleJoin(ws, data) {
             } catch (dbError) {
                 console.error('DB update failed:', dbError);
             }
+
+            if(game.status === 'joined'){
+                game.status = 'active';
+
+                let connection ;
+                try {
+                    connection = await getDbConnection();
+                    await pool.execute(
+                        `UPDATE games 
+                        SET game_state = ?
+                        WHERE game_hash = ?`,
+                        [game.status, gameId]
+                    );
+                } catch (dbError) {
+                    console.error('DB update failed for game_state:', dbError);
+                }
+              
+            }
     
             console.log(`Move processed for ${gameId} by ${walletAddress}`);
     
@@ -742,28 +817,28 @@ function handleJoin(ws, data) {
     }
 
 
-    function handleListGames(ws, data) {
-      const availableGames = Array.from(games.entries())
-        .filter(([_, game]) => game.status === 'waiting' || game.status === 'active')
-        .map(([gameId, game]) => ({
-          gameId,
-          status: game.status,
-          players: game.players.size,
-          viewers: game.viewers.size,
-          fen: game.chess.fen()
-        }));
-    
-      const msg2Send = {
-        type: 'gameList',
-        count: availableGames.length, // Number of games
-        games: availableGames
-      };
-    
-      ws.send(JSON.stringify(msg2Send));
-    }
+  async function handleListGames(ws, data) {
+    const availableGames = Array.from(games.entries())
+      .filter(([_, game]) => game.status === 'waiting' || game.status === 'active')
+      .map(([gameId, game]) => ({
+        gameId,
+        status: game.status,
+        players: game.players.size,
+        viewers: game.viewers.size,
+        fen: game.chess.fen()
+      }));
+  
+    const msg2Send = {
+      type: 'gameList',
+      count: availableGames.length, // Number of games
+      games: availableGames
+    };
+  
+    ws.send(JSON.stringify(msg2Send));
+  }
     
   
-  function handleViewGame(ws, gameId) {
+  async function handleViewGame(ws, gameId) {
     const game = games.get(gameId);
     
     if (!game) {
@@ -806,7 +881,7 @@ function handleJoin(ws, data) {
     console.log(`New viewer for game ${gameId}`);
   }
   
-  function handleChat(ws, { gameId, message, sender }) {
+  async function handleChat(ws, { gameId, message, sender }) {
     const game = games.get(gameId);
     if (!game) return;
     
@@ -821,7 +896,7 @@ function handleJoin(ws, data) {
     console.log(`Chat in ${gameId}: ${message}`);
   }
 
-  function handleReconnect(ws, { gameId, walletAddress, signature }) {
+  async function handleReconnect(ws, { gameId, walletAddress, signature }) {
     const game = games.get(gameId);
     if (!game) {
       return ws.send(JSON.stringify({
@@ -862,7 +937,7 @@ function handleJoin(ws, data) {
     console.log(`Player ${walletAddress} reconnected`);
   }
 
-  function handleResign(ws, { gameId, walletAddress }) {
+  async function handleResign(ws, { gameId, walletAddress }) {
     const game = games.get(gameId);
     if (!game) {
       return ws.send(JSON.stringify({
@@ -884,23 +959,11 @@ function handleJoin(ws, data) {
         message: 'You are not a player in this game.'
       }));
     }
-  
-    // Notify both players
-    // game.players.forEach(player => {
-    //   if (player.ws.readyState === WebSocket.OPEN) {
-    //     player.ws.send(JSON.stringify({
-    //       type: 'gameEnded',
-    //       winner: player.ws === ws ? 'opponent' : playerId,
-    //       reason: 'resignation'
-    //     }));
-    //   }
-    // });
 
     let win1 = (game.players[0] === ws) ? game.players[1] : game.players[0] ;
     let win2 = (game.wallets[0] === walletAddress) ? game.wallets[1] : game.wallets[0] ;
     // if(game.players[0] === ws){
-    //   winner = game.players[1];
-    // }
+      winnerColor    // }
 
     let msg = {
       type: 'gameEnded',
@@ -912,11 +975,145 @@ function handleJoin(ws, data) {
   
     // Clean up game
     // clearTimeout(game.timeout);
-    games.delete(gameId);
+    // Cleanup
+    
+    // if(game.isBetting){
+    //     let winnerSide = (game.creator.walletAddress === walletAddress) ? game.opponent.side : game.creator.side;
+    //     let tryPay = await processGamePayout(gameId, 'resign', winnerSide);
+    //     if(tryPay.state){
+    //         console.log(`Game ${gameId} ended by resignation. Winner: ${winnerSide}`);
+    //         if (game.timeout) {
+    //           clearTimeout(game.timeout);
+    //         }
+    //         games.delete(gameId);
+
+    //         game.status = 'resigned';
+    //         await updateGameState(game.status, gameId);
+
+    //     }
+    // }else{
+    //     if (game.timeout) {
+    //       clearTimeout(game.timeout);
+    //     }
+    //     games.delete(gameId);
+
+    //     game.status = 'resigned';
+    //     await updateGameState(game.status, gameId);
+
+    // }
+
+
+    let winnerColor = (game.creator.walletAddress === walletAddress) ? game.opponent.side : game.creator.side;
+    await cleanUpAndPayments(game, winnerColor, 'resign');
     //TODO, update the game state in the db and make possible pay-outs
 
     console.log(`Game ${gameId} ended by resignation`);
   }
+
+  async function updateGameState(gameState, gameId){
+    // game.status = 'resigned';
+    let connection ;
+    try {
+        connection = await getDbConnection();
+        await pool.execute(
+            `UPDATE games 
+            SET game_state = ?
+            WHERE game_hash = ?`,
+            [gameState, gameId]
+        );
+
+        console.log(`Game State: ${gameId} Updated Successfully`);
+
+    } catch (dbError) {
+        console.error('DB update failed (in updateGamesState fucntion) for game_state:', dbError);
+    }
+  }
+
+  // I had to research and I discovered that Javascript passes variables by reference.
+  async function cleanUpAndPayments(game, condition, winnerColor){
+      if(game.isBetting){
+        // let winnerSide = (game.creator.walletAddress === walletAddress) ? game.opponent.side : game.creator.side;
+        let tryPay = await processGamePayout(game.gameId, condition, winnerColor);
+        if(tryPay.state){
+            console.log(`Game ${game.gameId} ended by ${condition}. Winner: ${winnerColor}`);
+            if (game.timeout) {
+              clearTimeout(game.timeout);
+            }
+            games.delete(game.gameId);
+
+            game.status = condition;
+            await updateGameState(game.status, game.gameId);
+
+        }
+    }else{
+        if (game.timeout) {
+          clearTimeout(game.timeout);
+        }
+        games.delete(game.gameId);
+
+        game.status = condition;
+        await updateGameState(game.status, game.gameId);
+
+    }
+  }
+
+  async function handleCheckmate(ws, { gameId }) {
+      const game = games.get(gameId);
+    
+      // 1. Validate the game exists
+      if (!game) {
+        return ws.send(JSON.stringify({
+          type: 'error',
+          message: 'Game not found'
+        }));
+      }
+    
+      // 2. Get FEN and verify checkmate using chess.js
+      if (!game.chess.isCheckmate()) {
+        return ws.send(JSON.stringify({
+          type: 'error',
+          message: 'Game is not in a checkmate state.'
+        }));
+      }
+    
+      // 3. Determine winner
+      const loserColor = game.chess.turn(); // it's the loser’s turn
+      const winnerColor = loserColor === 'w' ? 'b' : 'w';
+    
+      // 4. Identify the winner’s wallet address
+      let winnerWallet;
+      if (game.creator.side === winnerColor) {
+        winnerWallet = game.creator.walletAddress;
+      } else if (game.opponent.walletAddress && game.opponent.side === winnerColor) {
+        winnerWallet = game.opponent.walletAddress;
+      } else {
+        return ws.send(JSON.stringify({
+          type: 'error',
+          message: 'Unable to determine winner.'
+        }));
+      }
+    
+      // 5. Broadcast endgame
+      const msg = {
+        type: 'gameEnded',
+        reason: 'checkmate',
+        winner: winnerWallet,
+        winnerColor: winnerColor,
+        fen: game.chess.fen()
+      };
+      broadcastToAll(game, msg);
+    
+      // 6. Clean up
+      // if (game.timeout) {
+      //   clearTimeout(game.timeout);
+      // }
+      // games.delete(gameId);
+      // let winnerColor = (game.creator.walletAddress === walletAddress) ? game.opponent.side : game.creator.side;
+      await cleanUpAndPayments(game, winnerColor, 'checkmate');
+      
+      console.log(`Game ${gameId} ended by checkmate. Winner: ${winnerColor}`);
+  }
+  
 
   async function handleStale(ws, { gameId, walletAddress }) {
     const game = games.get(gameId);
@@ -955,7 +1152,15 @@ function handleJoin(ws, data) {
       };
       
       broadcastToAll(game, msg);
-      games.delete(gameId);
+
+      // Cleanup
+      // if (game.timeout) {
+      //   clearTimeout(game.timeout);
+      // }
+
+      // games.delete(gameId);
+      // let winnerColor = (game.creator.walletAddress === walletAddress) ? game.opponent.side : game.creator.side;
+      await cleanUpAndPayments(game, '', 'stalemate');
 
     }else{
       let msg = {
@@ -977,6 +1182,7 @@ function handleJoin(ws, data) {
     // games.delete(gameId);
     //TODO, update the game state in the db and make possible pay-outs
 
+    
     console.log(`Game ${gameId} ended by resignation`);
   }
 
@@ -1195,6 +1401,200 @@ function generateNonce() {
     return "Sign this message to prove wallet ownership. Nonce: " + 
       Math.floor(Math.random() * 1000000);
   }
+
+
+  async function processGamePayout(gameId, endCondition, winner = null) {
+    const game = games.get(gameId);
+    if (!game || !game.isBetting || !game.transactionIds || game.transactionIds.length === 0) {
+      const msg = `Game ${gameId} is invalid for payout processing.`;
+      console.error(msg);
+      return { state: 0, msg };
+    }
+  
+    const connection = await getDbConnection();
+    const [row] = await connection.query('SELECT paymentStatus FROM games WHERE gameId = ?', [gameId]);
+  
+    if (row.length === 0) {
+      const msg = `No record found in database for game ${gameId}`;
+      console.error(msg);
+      return { state: 0, msg };
+    }
+  
+    if (row[0].paymentStatus === 'paid') {
+      const msg = `Payment already processed for game ${gameId}`;
+      console.log(msg);
+      return { state: 0, msg };
+    }
+  
+    // Attempt to mark payment as "processing" to avoid double payouts
+    try {
+      await connection.query('UPDATE games SET paymentStatus = ? WHERE gameId = ?', ['processing', gameId]);
+      console.log(`Marked game ${gameId} as processing.`);
+    } catch (err) {
+      const msg = `Error updating game ${gameId} payment status to 'processing': ${err.message}`;
+      console.error(msg);
+      return { state: 0, msg };
+    }
+  
+    const amount = game.playerAmount * 2;
+    const creator = game.creator.walletAddress;
+    const opponent = game.opponent.walletAddress;
+    let payouts = [];
+  
+    switch (endCondition) {
+      case 'stalemate':
+      case 'aborted': {
+        const halfAfterCut = (game.playerAmount * 0.975).toFixed(6);
+        payouts.push({ to: creator, amount: halfAfterCut });
+        payouts.push({ to: opponent, amount: halfAfterCut });
+        break;
+      }
+  
+      case 'checkmate': {
+        const winnerSide = game.chess.turn() === 'w' ? 'b' : 'w';
+        if (winner && winner !== winnerSide) {
+          const msg = `Winner side for '${endCondition}' does not match passed value in game ${gameId}`;
+          console.error(msg);
+          return { state: 0, msg };
+        }
+        const winnerWallet = (game.creator.side === winnerSide) ? creator : opponent;
+        const payoutAmount = (amount * 0.95).toFixed(6);
+        payouts.push({ to: winnerWallet, amount: payoutAmount });
+        break;
+      }
+
+      // case 'abandoned': {
+      //   const winnerSide = game.chess.turn() === 'w' ? 'b' : 'w';
+      //   const winnerWallet = (game.creator.side === winnerSide) ? creator : opponent;
+      //   const payoutAmount = (amount * 0.95).toFixed(6);
+      //   payouts.push({ to: winnerWallet, amount: payoutAmount });
+      //   break;
+      // }
+  
+      // case 'resign': {
+      //   const loserSide = winner !== null ? winner : game.chess.turn();
+      //   const loserWallet = (loserSide === game.creator.side) ? creator : opponent;
+      //   const winnerWallet = loserWallet === creator ? opponent : creator;
+      //   const payoutAmount = (amount * 0.96).toFixed(6);
+      //   payouts.push({ to: winnerWallet, amount: payoutAmount });
+      //   break;
+      // }
+
+      case 'abandoned':
+      case 'resign': {
+        if (!winner) {
+          const msg = `Winner not provided for end condition '${endCondition}' in game ${gameId}`;
+          console.error(msg);
+          return { state: 0, msg };
+        }
+
+        const winnerWallet = (winner === game.creator.side) ? creator : opponent;
+        const payoutAmount = (endCondition === 'resign' ? amount * 0.96 : amount * 0.95).toFixed(6);
+        payouts.push({ to: winnerWallet, amount: payoutAmount });
+        break;
+      }
+
+  
+      default: {
+        const msg = `Unknown end condition: ${endCondition}`;
+        console.error(msg);
+        return { state: 0, msg };
+      }
+    }
+  
+    // Process payouts
+    try {
+      for (let p of payouts) {
+        const { to, amount } = p;
+        const result = await transferSol(to, parseFloat(amount));
+        if (!result.success) throw result.error;
+        console.log(`Transferred ${amount} SOL to ${to}`);
+      }
+  
+      // Final DB update to mark as paid
+      await connection.query('UPDATE games SET paymentStatus = ? WHERE gameId = ?', ['paid', gameId]);
+      const msg = `Payout for game ${gameId} processed successfully.`;
+      console.log(msg);
+      return { state: 1, msg };
+    } catch (err) {
+      const msg = `Error during payout for game ${gameId}: ${err.message}`;
+      console.error(msg);
+      // Optional: Revert 'processing' status or mark as 'failed'
+      await connection.query('UPDATE games SET paymentStatus = ? WHERE gameId = ?', ['error', gameId]);
+      return { state: 0, msg };
+    }
+  }
+  
+
+  // async function processGamePayout(gameId, endCondition, winner= null) {
+  //   const game = games.get(gameId);
+  //   if (!game || !game.isBetting || !game.transactionIds || game.transactionIds.length === 0) {
+  //     return console.error(`Game ${gameId} is invalid for payout processing.`);
+  //   }
+  
+  //   const connection = await getDbConnection();
+  //   const [row] = await connection.query('SELECT paymentStatus FROM games WHERE gameId = ?', [gameId]);
+  
+  //   if (row.length === 0) {
+  //     return console.error(`No record found in database for game ${gameId}`);
+  //   }
+  
+  //   if (row[0].paymentStatus === 'paid') {
+  //     return console.log(`Payment already processed for game ${gameId}`);
+  //   }
+  
+  //   const amount = game.playerAmount * 2;
+  //   let payouts = [];
+  
+  //   const creator = game.creator.walletAddress;
+  //   const opponent = game.opponent.walletAddress;
+  
+  //   switch (endCondition) {
+  //     case 'stalemate':
+  //     case 'aborted':
+  //       const halfAfterCut = (game.playerAmount * 0.975).toFixed(6);
+  //       payouts.push({ to: creator, amount: halfAfterCut });
+  //       payouts.push({ to: opponent, amount: halfAfterCut });
+  //       break;
+  
+  //     case 'checkmate':
+  //     case 'abandoned': {
+  //       const winnerSide = game.chess.turn() === 'w' ? 'b' : 'w';
+  //       const winner = (game.creator.side === winnerSide) ? creator : opponent;
+  //       const payoutAmount = (amount * 0.95).toFixed(6);
+  //       payouts.push({ to: winner, amount: payoutAmount });
+  //       break;
+  //     }
+  
+  //     case 'resign': {
+  //       const loser = (winner!==null ? winner: game.chess.turn()) === game.creator.side ? creator : opponent;
+  //       const winner = loser === creator ? opponent : creator;
+  //       const payoutAmount = (amount * 0.96).toFixed(6);
+  //       payouts.push({ to: winner, amount: payoutAmount });
+  //       break;
+  //     }
+  
+  //     default:
+  //       return console.error(`Unknown end condition: ${endCondition}`);
+  //   }
+  
+  //   // Transfer funds
+  //   for (let p of payouts) {
+  //     try {
+  //       await transferSol(p.to, p.amount);
+  //       console.log(`Transferred ${p.amount} SOL to ${p.to}`);
+  //     } catch (err) {
+  //       console.error(`Error transferring to ${p.to}:`, err);
+  //     }
+  //   }
+  
+  //   // Update database
+  //   await connection.query('UPDATE games SET paymentStatus = ? WHERE gameId = ?', ['paid', gameId]);
+  
+  //   console.log(`Payout for game ${gameId} processed successfully.`);
+  // } 
+  
+  // module.exports = { processGamePayout };
 
 
 console.log('Chess WebSocket server running on ws://localhost:'+port);

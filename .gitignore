@@ -9,3 +9,5 @@ chess-engine/
 chess-engine/stockfish*
 .htaccess
 *.log
+*keypair.json
+*.pem

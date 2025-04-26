@@ -175,7 +175,8 @@ async function updateGameState(req, res){
     try {
         const connection = await getDbConnection();
     
-        const validStates = ['starting', 'running', 'checkmate', 'aborted', 'abandoned', 'draw'];
+        // const validStates = ['starting', 'running', 'checkmate', 'aborted', 'abandoned', 'draw'];
+        const validStates = ['starting','running','waiting','joined','active','checkmate','aborted','abandoned','draw'];
         if (!validStates.includes(gameState)) {
           return res.status(400).json({ error: 'Invalid game state' });
         }
