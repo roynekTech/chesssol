@@ -413,6 +413,7 @@ function handleJoin(ws, data) {
       if(game.status === 'active'){
         let winnerColor = activeGame.chess.turn() === 'w' ? 'b' : 'w';
         await cleanUpAndPayments(game, winnerColor, 'abandoned');
+        console.log( 'abandoned state...' );
       }else{
         // await updateGameState('ended', gameId);
         // games.delete(gameId);
