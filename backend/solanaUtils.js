@@ -4,17 +4,26 @@ require('dotenv').config({ path: __dirname + '/.env' });
 
 const { Connection, PublicKey, SystemProgram, Keypair, Transaction } = require('@solana/web3.js');
 const { LAMPORTS_PER_SOL } = require('@solana/web3.js'); // 1 SOL = 1,000,000,000 lamports
-const { transferSol } = require('./solanaUtils'); // Custom function
+// const { transferSol } = require('./solanaUtils'); // Custom function
 
-async function transferSol(walletAddress, amount) {
+async function transferSol(walletAddress, amount, from=null) {
   try {
     // Create a connection to the Solana cluster
     // const connection = new Connection('https://api.mainnet-beta.solana.com', 'confirmed');
     const connection = new Connection('https://api.devnet.solana.com', 'confirmed');
-
+    // const connection = new Connection('http://127.0.0.1:8899', 'confirmed');
 
     // Get the wallet's private key from the .env file
-    const privateKey = process.env.SOLANA_WALLET_PRIVATE_KEY;
+    let privateKey;
+    if(from === "tesmg9WugyDHVF47nRf8rJnhkvMaddeVi1GEU4kPMKy" || from === "tesqs2B7YjmuZyPGtsXm1TuuJLB1tZFrHuZhuLeRhpq"){
+      privateKey = process.env.from;
+    }else{
+      privateKey = process.env.SOLANA_WALLET_PRIVATE_KEY;
+    }
+    
+    console.log("from: ", from);
+    console.log("privateKey", privateKey);
+    // const privateKey = process.env.SOLANA_WALLET_PRIVATE_KEY;
     const secretKey = Uint8Array.from(JSON.parse(privateKey)); // Assuming private key is stored as a JSON array
     const fromWallet = Keypair.fromSecretKey(secretKey);
 

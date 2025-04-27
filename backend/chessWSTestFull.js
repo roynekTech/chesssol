@@ -5,15 +5,16 @@ const WebSocket = require('ws');
 const { transferSol } = require('./solanaUtils');
 
 // Setup
-const wsUrl = 'ws://your-server-address/chesssol/backend/ws';
+// const wsUrl = 'ws://your-server-address/chesssol/backend/ws';
+const wsUrl = 'ws://localhost:3000/chesssol/backend/ws';
 const companyAddress = 'che8nUkgbX8RLgMsouwVoa6ezdGgTkpU2vZc6kxJ7UH';
 
 // Test wallets (assumed dummy for test, or real on devnet)
-const wallet1 = '0xWalletAddress1';
-const wallet2 = '0xWalletAddress2';
+const wallet1 = 'tesmg9WugyDHVF47nRf8rJnhkvMaddeVi1GEU4kPMKy';
+const wallet2 = 'tesqs2B7YjmuZyPGtsXm1TuuJLB1tZFrHuZhuLeRhpq';
 
 // Betting amount per player (in SOL)
-const playerAmount = 0.01; // small amount for test
+const playerAmount = 1; // small amount for test
 
 // WebSocket instances
 const ws1 = new WebSocket(wsUrl);
@@ -25,9 +26,9 @@ let transactionId1 = null;
 let transactionId2 = null;
 
 // Helpers
-async function transferFromMainWalletTo(walletAddress, amount) {
+async function transferFromMainWalletTo(walletAddress, amount, from=null) {
   console.log(`Transferring ${amount} SOL to ${walletAddress}...`);
-  const result = await transferSol(walletAddress, amount);
+  const result = await transferSol(walletAddress, amount, from);
   if (result.success) {
     console.log(`Transfer complete! Transaction: ${result.signature}`);
     return result.signature;
@@ -48,8 +49,8 @@ function sendWhenReady(ws, message) {
 async function runTest() {
   try {
     // Step 1: Transfer funds from Main Wallet to Company Address (simulate wallet1 and wallet2 payment)
-    transactionId1 = await transferFromMainWalletTo(companyAddress, playerAmount);
-    transactionId2 = await transferFromMainWalletTo(companyAddress, playerAmount);
+    transactionId1 = await transferFromMainWalletTo(companyAddress, playerAmount, wallet1);
+    transactionId2 = await transferFromMainWalletTo(companyAddress, playerAmount, wallet2);
 
     // Step 2: Connect wallet1 and create game
     ws1.on('open', () => {
