@@ -49,8 +49,14 @@ function sendWhenReady(ws, message) {
 async function runTest() {
   try {
     // Step 1: Transfer funds from Main Wallet to Company Address (simulate wallet1 and wallet2 payment)
-    transactionId1 = await transferFromMainWalletTo(companyAddress, playerAmount, wallet1);
-    transactionId2 = await transferFromMainWalletTo(companyAddress, playerAmount, wallet2);
+    // transactionId1 = await transferFromMainWalletTo(companyAddress, playerAmount, wallet1);
+    // transactionId2 = await transferFromMainWalletTo(companyAddress, playerAmount, wallet2);
+
+    // transactionId1 = "5gWL9daTrXjUZqZ23hVhoovW4R8v761xhqD8Q9trrELsoty4F3ArHmVPfc4zZw3pHVeD1xR64QjCideJqmDM6mde";
+    // transactionId2 = "3EdXJbgH82Yton7sQAWcK1yjpTDB1gakGtbZBDsrmuTiwu9QMJN38oR6qKewET9G7asTtduvFqJZWkSBmgGthTDW";
+
+    transactionId1 = "yGypCCf6JTBJmyRhgjtk4mgMy7unckR6UsnrWC75QMp1mYNZEuZJhTAePKHPeh7g4e5QmyQN4QdchjtL2s4P1Zh";
+    transactionId2 = "29bUYyGkmvkfow7R1ieUvTFmvUk4odZ3m5qV3MYRDoBAopJGMDVFJQ3gJ6fAdDsxNmcpYadCRex9dFgUhrShsfGK"
 
     // Step 2: Connect wallet1 and create game
     ws1.on('open', () => {
@@ -130,7 +136,7 @@ async function runTest() {
           sendWhenReady(ws2, {
             type: 'resign',
             gameId: gameId,
-            playerId: wallet2
+            walletAddress: wallet2
           });
         }, 8000);
       }

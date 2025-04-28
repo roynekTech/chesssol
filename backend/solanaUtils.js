@@ -15,9 +15,13 @@ async function transferSol(walletAddress, amount, from=null) {
 
     // Get the wallet's private key from the .env file
     let privateKey;
-    if(from === "tesmg9WugyDHVF47nRf8rJnhkvMaddeVi1GEU4kPMKy" || from === "tesqs2B7YjmuZyPGtsXm1TuuJLB1tZFrHuZhuLeRhpq"){
-      privateKey = process.env.from;
-    }else{
+    if(from === "tesmg9WugyDHVF47nRf8rJnhkvMaddeVi1GEU4kPMKy"){
+      privateKey = process.env.tesmg9WugyDHVF47nRf8rJnhkvMaddeVi1GEU4kPMKy;
+    }
+    else if(from === "tesqs2B7YjmuZyPGtsXm1TuuJLB1tZFrHuZhuLeRhpq"){
+      privateKey = process.env.tesqs2B7YjmuZyPGtsXm1TuuJLB1tZFrHuZhuLeRhpq;
+    }
+    else{
       privateKey = process.env.SOLANA_WALLET_PRIVATE_KEY;
     }
     
