@@ -119,7 +119,10 @@ wss.on('connection', (ws) => {
           handleListGames(ws, data);
           break;
         case 'viewGame':
-          handleViewGame(ws, data.gameId);
+          handleViewGame(ws, data);
+          break;
+        case 'stateGame':
+          handleGameState(ws, data);
           break;
         case 'chat':
             handleChat(ws, data);
@@ -1170,9 +1173,30 @@ function handleJoin(ws, data) {
   
     ws.send(JSON.stringify(msg2Send));
   }
-    
   
-  async function handleViewGame(ws, gameId) {
+
+  async function handleGameState(ws, data) {
+      const gameId = data.gameId;
+      const game = games.get(gameId);
+      
+      if (!game) {
+        return ws.send(JSON.stringify({
+          type: 'error',
+          message: 'Game not found'
+        }));
+      }
+    
+      ws.send(JSON.stringify({
+        type: 'gameState',
+        game: game
+      }));
+    
+      console.log(`Reporting this gameState: ${gameId}`);
+  }
+
+  
+  async function handleViewGame(ws, data) {
+    const gameId = data.gameId;
     const game = games.get(gameId);
     
     if (!game) {
@@ -1338,6 +1362,7 @@ function handleJoin(ws, data) {
       type: 'gameEnded',
       // winner: game.players[0] ===  'opponent' : playerId,
       winner:  win2,
+      winnerColor: (win2 === game.creator.walletAddress) ? game.creator.side : game.opponent.side,
       reason: 'resignation'
     };
     broadcastToAll(game, msg);
@@ -1669,9 +1694,10 @@ function handleJoin(ws, data) {
       let msg = {
         type: 'chat',
         // winner: game.players[0] ===  'opponent' : playerId,
-        message:  "offering stalemate",
-        // reason: 'offered stalemate'
-        sender: walletAddress
+        message:  "offering stalemate. You can Accept(by using the Draw Button) or Decline(by Ignoring)",
+        // sender: walletAddress,
+        sender: "Server",
+        initiator: walletAddress
       };
 
       broadcastToAll(game, msg);

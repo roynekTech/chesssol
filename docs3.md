@@ -134,6 +134,7 @@ All messages must be JSON objects with a `type` field indicating the message typ
   "fen": "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1",
   "walletAddress": "player1",
   "move": "e2e4",
+  "clientTime": 250459,
   "initialFen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 }
 ```
@@ -223,7 +224,37 @@ All messages must be JSON objects with a `type` field indicating the message typ
 
 ---
 
-### 6. Chat
+### 6. Game State
+**Type:** `stateGame`  
+**Description:** Spectates an existing game.
+
+**Request:**
+```json
+{
+  "type": "stateGame",
+  "gameId": "uuid123"
+}
+```
+
+**Response (Success):**
+```json
+{
+  "type": "gameState",
+  "game": "JSON",
+}
+```
+
+**Response (Error):**
+```json
+{
+  "type": "error",
+  "message": "Game not found"
+}
+```
+
+---
+
+### 7. Chat
 **Type:** `chat`  
 **Description:** Sends a chat message to game participants.
 
@@ -248,7 +279,7 @@ All messages must be JSON objects with a `type` field indicating the message typ
 
 ---
 
-### 7. Reconnect
+### 8. Reconnect
 **Type:** `reconnect`  
 **Description:** Reconnects to a game after disconnection.
 
@@ -257,7 +288,8 @@ All messages must be JSON objects with a `type` field indicating the message typ
 {
   "type": "reconnect",
   "gameId": "uuid123",
-  "playerId": "0x123..."
+  "walletAddress": "0x123..."
+  // "playerId": "0x123..."
 }
 ```
 
@@ -281,7 +313,7 @@ All messages must be JSON objects with a `type` field indicating the message typ
 
 ---
 
-### 8. Resign
+### 9. Resign
 **Type:** `resign`  
 **Description:** Resigns from the current game.
 
@@ -290,7 +322,7 @@ All messages must be JSON objects with a `type` field indicating the message typ
 {
   "type": "resign",
   "gameId": "uuid123",
-  "playerId": "0x123..."
+  "walletAddress": "0x123..."
 }
 ```
 
@@ -299,13 +331,80 @@ All messages must be JSON objects with a `type` field indicating the message typ
 {
   "type": "gameEnded",
   "winner": "opponent",
+  "winnerColor": "b"|"w",
   "reason": "resignation"
 }
 ```
 
 ---
 
-### 9. Pair Request
+### 9. Checkmate
+**Type:** `checkmate`  
+**Description:** Request a checkmate review.
+
+**Request:**
+```json
+{
+  "type": "checkmate",
+  "gameId": "uuid123",
+  "walletAddress": "0x123..."
+}
+```
+
+**Response (Broadcast):**
+```json
+{
+  "type": "gameEnded",
+  "winner": "0x124...",
+  "winnerColor": "b"|"w",
+  "reason": "checkmate",
+  "fen": "FEN"
+  
+}
+```
+
+
+---
+
+### 10. Stalemate
+**Type:** `draw`  
+**Description:** Resigns from the current game.
+
+**Request:**
+```json
+{
+  "type": "draw",
+  "gameId": "uuid123",
+  "walletAddress": "0x123..."
+}
+```
+
+**Response (Agreed/Success):**
+```json
+{
+  "type": "gameEnded",
+  "winner": null,
+  "reason": "stalemate"
+}
+```
+
+
+**Response (Broadcast):**
+```json
+{
+  "type": "chat",
+  "message":  "offering stalemate",
+  "sender": "Server",
+  "initiator": "walletAddress"|"opponentWalletAddress"
+}
+
+```
+
+
+---
+
+
+### 11. Pair Request
 **Type:** `pairRequest`  
 **Description:** Requests to be paired with an opponent.
 
