@@ -348,7 +348,8 @@ function handleJoin(ws, data) {
     //handle config
     if(!data.config){
       //use the default configurations
-      config = {randomStart: false, moveTimeout: duration, numberOfGames: 1 };
+      // config = {randomStart: false, moveTimeout: duration, numberOfGames: 1 };
+      config = {randomStart: true, moveTimeout: duration, numberOfGames: 1 };
     }else{
       config = data.config;
     }
@@ -409,9 +410,26 @@ function handleJoin(ws, data) {
         gameId: gameId,
         createdAt: Date.now()
     };
+
+    const starterFENs = [
+        "rnbqk1nr/pppp1ppp/8/2b1p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 4",
+        "rnbqkbnr/1ppp1ppp/p3p3/1B2P3/4P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 4",
+        "rnbqkbnr/ppp2ppp/4p3/3p4/2P5/5N2/PP1PPPPP/RNBQKB1R w KQkq - 0 3",
+        "r1bqkbnr/pp1ppppp/2n5/2p5/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3",
+        "rnbqkbnr/ppp2ppp/4p3/3pP3/8/5N2/PPPP1PPP/RNBQKB1R w KQkq - 0 3",
+        "rnbqkb1r/pppppp1p/5np1/8/2P5/5N2/PP1PPPPP/RNBQKB1R w KQkq - 2 3"
+    ];
     
-    // Store in memory
-    games.set(gameId, game);
+    if(game.config.randomStart){
+        // Randomly select a FEN string from the starterFENs array
+        const randomFEN = starterFENs[Math.floor(Math.random() * starterFENs.length)];
+        // const chess = new Chess(randomFEN);
+        game.chess.load(randomFEN);
+        
+        // Store in memory
+        games.set(gameId, game);
+    }
+    
 
 
     // Set a timeout to auto-end the game after duration * 3
