@@ -528,6 +528,7 @@ function handleJoin(ws, data) {
         color: assignedColor,
         isBetting: isBetting,
         playerAmount: isBetting ? data.playerAmount : null,
+        duration: duration,
         nonce: generateNonce()
     }));
 
@@ -752,6 +753,7 @@ function handleJoin(ws, data) {
             isBetting: isBetting,
             playerAmount: isBetting ? data.playerAmount : null,
             mode: "forwarded",
+            duration: duration,
             nonce: generateNonce()
         }));
 
@@ -1896,30 +1898,64 @@ function generateNonce() {
       return { state: 0, msg };
     }
   
-    const connection = await getDbConnection();
-    const [row] = await connection.query('SELECT paymentStatus FROM games WHERE game_hash = ?', [gameId]);
+    // const connection = await getDbConnection();
+    // const [row] = await connection.query('SELECT paymentStatus FROM games WHERE game_hash = ?', [gameId]);
   
-    if (row.length === 0) {
+    // if (row.length === 0) {
+    //   const msg = `No record found in database for game ${gameId}`;
+    //   console.error(msg);
+    //   return { state: 0, msg };
+    // }
+  
+    // if (row[0].paymentStatus === 'paid') {
+    //   const msg = `Payment already processed for game ${gameId}`;
+    //   console.log(msg);
+    //   return { state: 0, msg };
+    // }
+  
+    // // Attempt to mark payment as "processing" to avoid double payouts
+    // try {
+    //   await connection.query('UPDATE games SET paymentStatus = ? WHERE game_hash = ?', ['processing', gameId]);
+    //   console.log(`Marked game ${gameId} as processing.`);
+    // } catch (err) {
+    //   const msg = `Error updating game ${gameId} payment status to 'processing': ${err.message}`;
+    //   console.error(msg);
+    //   return { state: 0, msg };
+    // }
+
+    const connection = await getDbConnection();
+
+    // Use execute for secure, parameterized query
+    const [rows] = await connection.execute(
+      'SELECT paymentStatus FROM games WHERE game_hash = ?', 
+      [gameId]
+    );
+
+    if (rows.length === 0) {
       const msg = `No record found in database for game ${gameId}`;
       console.error(msg);
       return { state: 0, msg };
     }
-  
-    if (row[0].paymentStatus === 'paid') {
+
+    if (rows[0].paymentStatus === 'paid') {
       const msg = `Payment already processed for game ${gameId}`;
       console.log(msg);
       return { state: 0, msg };
     }
-  
+
     // Attempt to mark payment as "processing" to avoid double payouts
     try {
-      await connection.query('UPDATE games SET paymentStatus = ? WHERE game_hash = ?', ['processing', gameId]);
+      await connection.execute(
+        'UPDATE games SET paymentStatus = ? WHERE game_hash = ?', 
+        ['processing', gameId]
+      );
       console.log(`Marked game ${gameId} as processing.`);
     } catch (err) {
       const msg = `Error updating game ${gameId} payment status to 'processing': ${err.message}`;
       console.error(msg);
       return { state: 0, msg };
     }
+
   
     const amount = game.playerAmount * 2;
     const creator = game.creator.walletAddress;
