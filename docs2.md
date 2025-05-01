@@ -114,7 +114,8 @@ Content-Type: application/json
 {
   "game_id": 42,
   "message": "Game created successfully",
-  "player_position": "player1 (white)"
+  "player_position": "player1 (white)",
+  "game_hash": "28jd0-2945..."
 }
 ```
 
@@ -136,7 +137,7 @@ Content-Type: application/json
 {
   "message": "Successfully joined the game",
   "game_id": 42,
-  "player_position": "player2",
+  "player_position": "player2", // player2 is b and player1 is w
   "game_state": "running"
 }
 ```
@@ -183,6 +184,29 @@ Content-Type: application/json
   "best_move": "g8f6"
 }
 ```
+
+
+
+#### 5. Game Data
+**Request**:
+```http
+POST /chesssol/backend/gameData/GAME_HASH
+Content-Type: application/json
+example: curl -X GET http://localhost:3000/chesssol/backend/gameData/6d15fd86-eeda-4bf1-8c27-43f3addace31
+
+```
+
+**Response**:
+```json
+{
+  "state": true,
+  "gameData": "JSON",
+  "duration": 30000,
+  "game_state": "waiting",
+  "bet_status": "false",
+}
+```
+
 
 ---
 

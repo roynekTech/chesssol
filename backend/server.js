@@ -37,9 +37,10 @@ app.put('/games/:gameId/state', gameHandlers.updateGameState);
 // Game data endpoints
 app.post(MAIN_DIR+'/games/:gameId/data', gameHandlers.updateGameData); // Update game state
 app.get(MAIN_DIR+'/games/:gameId/data', gameHandlers.getLatestGameData); // Get latest state
+
+app.get(MAIN_DIR+'/gameData/:game_hash', gameHandlers.getGameData); // Get latest state
+
 app.post(MAIN_DIR+'/games/legal-moves', gameHandlers.getLegalMoves); // Get legal moves
-
-
 app.post(MAIN_DIR+'/get_best_move', gameHandlers.getBestMoves); // Get legal moves
 
 

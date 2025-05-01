@@ -76,7 +76,8 @@ async function createGame(req, res){
         res.status(201).json({
             game_id: result.insertId,
             message: 'Game created successfully',
-            player_position: assignedSide === 'w' ? 'player1 (white)' : 'player2 (black)'
+            player_position: assignedSide === 'w' ? 'player1 (white)' : 'player2 (black)',
+            game_hash: d_game_hash
         });
     } catch (error) {
         console.error('Error creating game:', error);
@@ -303,6 +304,76 @@ async function updateGameData(req, res) {
     } catch (error) {
         console.error('Error updating game data:', error);
         res.status(500).json({ error: 'Internal server error' });
+    }
+}
+
+
+// async function getGameData(req, res) {
+//     const { game_hash } = req.params;
+//     // const { client, currentFen } = req.body;
+
+//     try {
+        
+//         // Get latest game data
+//         const [latestData] = await connection.execute(
+//         'SELECT * FROM games WHERE game_hash = ? ORDER BY timestamp DESC LIMIT 1',
+//         [game_hash]
+//         );
+
+//         if (latestData.length === 0) {
+//         connection.release();
+//         return res.status(404).json({ error: 'No game data found' });
+//         }
+
+//         const latest = latestData[0];
+
+//         connection.release();
+//         res.status(200).json({
+//             state: true,
+//             gameData: latest,
+//             duration: latest.duration,
+//             game_state: latest.game_state,
+//             bet_status: latest.bet_status,
+//         });
+
+//     } catch (error) {
+//         console.error('Error getting game data:', error);
+//         res.status(500).json({ error: 'Internal server error' });
+//     }
+// }
+
+async function getGameData(req, res) {
+    const { game_hash } = req.params;
+
+    try {
+        const connection = await getDbConnection(); //this is a pool
+
+        const [rows] = await connection.execute(
+            `SELECT *
+             FROM games
+             WHERE game_hash = ?
+             ORDER BY timestamp DESC
+             LIMIT 1`,
+            [game_hash]
+        );
+
+        if (rows.length === 0) {
+            return res.status(404).json({ error: 'No game data found' });
+        }
+
+        const latest = rows[0];
+
+        return res.status(200).json({
+            state: true,
+            gameData: latest,
+            duration: latest.duration,
+            game_state: latest.game_state,
+            bet_status: latest.bet_status,
+        });
+
+    } catch (error) {
+        console.error('Error getting game data:', error);
+        return res.status(500).json({ error: 'Internal server error' });
     }
 }
 
@@ -624,5 +695,6 @@ module.exports = {
   getLatestGameData,
   getLegalMoves,
   processMove, // new
-  getBestMoves
+  getBestMoves,
+  getGameData // new - db
 };
