@@ -208,8 +208,6 @@ example: curl -X GET http://localhost:3000/chesssol/backend/gameData/6d15fd86-ee
 ```
 
 
----
-
 ### WebSocket API Examples
 
 #### 1. Create Game
