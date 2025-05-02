@@ -1127,7 +1127,7 @@ function handleJoin(ws, data) {
                   let connection ;
                   try {
                       connection = await getDbConnection();
-                      await pool.execute(
+                      await connection.execute(
                           `UPDATE games 
                           SET game_state = ?
                           WHERE game_hash = ?`,

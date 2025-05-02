@@ -6,7 +6,8 @@ const { transferSol } = require('./solanaUtils');
 
 // Setup
 // const wsUrl = 'ws://your-server-address/chesssol/backend/ws';
-const wsUrl = 'ws://localhost:3000/chesssol/backend/ws';
+// const wsUrl = 'ws://localhost:3000/chesssol/backend/ws';
+const wsUrl = 'wss://chesssol.com/api/chesssol/backend/ws';
 const companyAddress = 'che8nUkgbX8RLgMsouwVoa6ezdGgTkpU2vZc6kxJ7UH';
 
 // Test wallets (assumed dummy for test, or real on devnet)
@@ -14,7 +15,7 @@ const wallet1 = 'tesmg9WugyDHVF47nRf8rJnhkvMaddeVi1GEU4kPMKy';
 const wallet2 = 'tesqs2B7YjmuZyPGtsXm1TuuJLB1tZFrHuZhuLeRhpq';
 
 // Betting amount per player (in SOL)
-const playerAmount = 1; // small amount for test
+const playerAmount = 0.2; // small amount for test
 
 // WebSocket instances
 const ws1 = new WebSocket(wsUrl);
