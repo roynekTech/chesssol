@@ -2109,10 +2109,6 @@ function generateNonce() {
         return res.status(404).json({ error: 'No game data found' });
       }
     
-      
-
-      game.viewers.add(ws);
-      
       return res.status(200).json({
           state: true,
           // gameData: /latest,
