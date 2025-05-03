@@ -2112,9 +2112,9 @@ function generateNonce() {
       return res.status(200).json({
           state: true,
           // gameData: /latest,
-          duration: latest.duration,
-          game_state: latest.game_state,
-          bet_status: latest.bet_status,
+          duration: game.duration,
+          game_state: game.status,
+          bet_status: game.isBetting,
       });
     
       // console.log(`New viewer for game ${game_hash}`);
