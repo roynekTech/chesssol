@@ -207,6 +207,38 @@ example: curl -X GET http://localhost:3000/chesssol/backend/gameData/6d15fd86-ee
 }
 ```
 
+list games
+
+curl "http://localhost:3000/chesssol/backend/listGames"
+
+curl "http://localhost:3000/chesssol/backend/listGames?mode=checkmate"
+
+{"status":true,"msg":"Games listed successfully","data":[{"bet_status":1,"player_amount":"1.00000000","duration":600000,"current_fen":"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1","time_difference":null,"game_state":"active"},{"bet_status":1,"player_amount":"1.00000000","duration":600000,"current_fen":"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1","time_difference":null,"game_state":"active"},
+
+
+view games
+
+curl  "http://local
+host:3000/chesssol/backend/viewGame?gameId=421a396d-4c1f-44ed-b057-66e262fc2e58"
+
+
+{
+  "status": true,
+  "msg": "Game retrieved successfully",
+  "data": {
+    "bet_status": 1,
+    "player_amount": "0.00500000",
+    "entire_game": "...",
+    "duration": 5000,
+    "move_history": "...",
+    "current_fen": "some FEN string",
+    "time_difference": "...",
+    "game_state": "active"
+  }
+}
+
+
+
 
 ### WebSocket API Examples
 

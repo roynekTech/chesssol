@@ -693,6 +693,78 @@ async function processMove(gameId, fen, client, clientTime) {
   }
 
 
+  async function viewGames(req, res) {
+    const game_hash = req.query.gameId;
+    if (!game_hash) {
+        return res.status(400).json({
+            status: false,
+            msg: 'Missing required query parameter: gameId',
+        });
+    }
+
+    try {
+        const connection = await getDbConnection();
+        const [rows] = await connection.execute(
+            `SELECT bet_status, player_amount, entire_game, duration, move_history, current_fen, time_difference, game_state
+             FROM games
+             WHERE game_hash = ?
+             LIMIT 1`,
+            [game_hash]
+        );
+
+        if (rows.length === 0) {
+            return res.status(404).json({
+                status: false,
+                msg: 'Game not found',
+            });
+        }
+
+        return res.json({
+            status: true,
+            msg: 'Game retrieved successfully',
+            data: rows[0],
+        });
+
+    } catch (error) {
+        console.error('Database error:', error);
+        return res.status(500).json({
+            status: false,
+            msg: 'Internal Server Error',
+        });
+    }
+}
+
+async function listGames(req, res) {
+    const game_state = req.query.mode || 'active';
+
+    try {
+        const connection = await getDbConnection();
+        const [rows] = await connection.execute(
+            `SELECT bet_status, player_amount, duration, current_fen, time_difference, game_hash, game_state
+            FROM games
+            WHERE game_state = ?
+            ORDER BY timestamp DESC`,
+            [game_state]
+        );
+
+        return res.json({
+            status: true,
+            msg: 'Games listed successfully',
+            data: rows,
+        });
+
+    } catch (error) {
+        console.error('Database error:', error);
+        return res.status(500).json({
+            status: false,
+            msg: 'Internal Server Error',
+        });
+    }
+}
+
+
+
+
 
 module.exports = {
   createGame,
@@ -703,5 +775,7 @@ module.exports = {
   getLegalMoves,
   processMove, // new
   getBestMoves,
-  getGameData // new - db
+  getGameData, // new - db
+  viewGames,
+  listGames
 };
