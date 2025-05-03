@@ -347,11 +347,11 @@ async function getGameData(req, res) {
 
     try {
 
-        console.log("output1371290s8194s");
+        // console.log("output1371290s8194s");
 
         const connection = await getDbConnection(); //this is a pool
 
-        console.log("output138194s");
+        // console.log("output138194s");
 
         const [rows] = await connection.execute(
             `SELECT *
@@ -362,14 +362,11 @@ async function getGameData(req, res) {
             [game_hash]
         );
 
-        console.log("output18734s");
-
         if (rows.length === 0) {
             return res.status(404).json({ error: 'No game data found' });
         }
 
         const latest = rows[0];
-        console.log("output13434s");
 
         return res.status(200).json({
             state: true,

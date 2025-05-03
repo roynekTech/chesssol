@@ -2115,6 +2115,7 @@ function generateNonce() {
           duration: game.duration,
           game_state: game.status,
           bet_status: game.isBetting,
+          amount: game.playerAmount
       });
     
       // console.log(`New viewer for game ${game_hash}`);
