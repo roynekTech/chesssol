@@ -1136,6 +1136,7 @@ function handleJoin(ws, data) {
                           WHERE game_hash = ?`,
                           [game.status, gameId]
                       );
+                      connection.release();
                   } catch (dbError) {
                       console.error('DB update failed for game_state:', dbError);
                   }
@@ -1154,6 +1155,10 @@ function handleJoin(ws, data) {
                 type: 'error',
                 message: e.message || 'Invalid move'
             }));
+        }
+
+        finally {
+            if (connection) connection.release();
         }
     }
 
@@ -1443,6 +1448,10 @@ function handleJoin(ws, data) {
 
     } catch (dbError) {
         console.error('DB update failed (in updateGamesState fucntion) for game_state:', dbError);
+    }
+
+    finally {
+        if (connection) connection.release();
     }
   }
 
@@ -2004,6 +2013,10 @@ function generateNonce() {
       return { state: 0, msg };
     }
 
+    finally {
+        if (connection) connection.release();
+    }
+
   
     const amount = game.playerAmount * 2;
     const creator = game.creator.walletAddress;
@@ -2097,6 +2110,8 @@ function generateNonce() {
       // Optional: Revert 'processing' status or mark as 'failed'
       await connection.query('UPDATE games SET paymentStatus = ? WHERE game_hash = ?', ['error', gameId]);
       return { state: 0, msg };
+    }finally {
+        if (connection) connection.release();
     }
   }
   

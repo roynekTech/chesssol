@@ -71,7 +71,8 @@ async function createGame(req, res){
         );
 
         //TODO: if you are using a pool, I believe you do not use end? so use the pool current or go back to useing the db.connect
-        connection.end();
+        // connection.end();
+        connection.release();
         
         res.status(201).json({
             game_id: result.insertId,
@@ -155,7 +156,8 @@ async function joinGame(req, res){
         [walletAddress, gameId]
         );
         
-        connection.end();
+        // connection.end();
+        connection.release();
         
         res.status(200).json({
         message: 'Successfully joined the game',
@@ -166,6 +168,10 @@ async function joinGame(req, res){
     } catch (error) {
         console.error('Error joining game:', error);
         res.status(500).json({ error: 'Internal server error' });
+    }
+
+    finally {
+        if (connection) connection.release();
     }
 }
 
@@ -382,6 +388,9 @@ async function getGameData(req, res) {
         console.error('Error getting game data:', error);
         return res.status(500).json({ error: 'Internal server error' });
     }
+    finally {
+        if (connection) connection.release();
+    }
 }
 
 
@@ -436,6 +445,9 @@ async function getLatestGameData(req, res) {
     } catch (error) {
         console.error('Error getting game data:', error);
         res.status(500).json({ error: 'Internal server error' });
+    }
+    finally {
+        if (connection) connection.release();
     }
 }
 
