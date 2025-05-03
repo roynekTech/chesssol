@@ -519,7 +519,7 @@ function handleJoin(ws, data) {
 
       }else{
           console.log("creating a forwarded game -- FROM ADMIN TIMEOUT...");
-          await createForwardedGame(ws, activeGame, gameId);
+          await createForwardedGame(activeGame, gameId);
       }
 
     }, duration * 3);
@@ -562,7 +562,7 @@ function handleJoin(ws, data) {
     
 }
   
-  async function createForwardedGame(ws, game, prev_gameId){
+  async function createForwardedGame(game, prev_gameId){
         const gameId = uuidv4();
         const chess = new Chess();
         let config;
@@ -610,7 +610,7 @@ function handleJoin(ws, data) {
 
         // Create game object
         const dgame = {
-            players: [ws],
+            players: game.players,
             viewers: new Set(),
             chess,
             status: 'waiting',
@@ -759,7 +759,7 @@ function handleJoin(ws, data) {
 
           }else{
               console.log("creating a forwarded game -- FROM ADMIN TIMEOUT...");
-              await createForwardedGame(ws, activeGame, gameId);
+              await createForwardedGame(activeGame, gameId);
           }
 
         }, duration * 3);
@@ -1416,7 +1416,7 @@ function handleJoin(ws, data) {
 
     }else{
         console.log("creating a forwarded game");
-        await createForwardedGame(ws, game, gameId);
+        await createForwardedGame(game, gameId);
     }
     
     //TODO, update the game state in the db and make possible pay-outs
@@ -1583,7 +1583,7 @@ function handleJoin(ws, data) {
 
       }else{
           console.log("creating a forwarded game -- FROM CHECKMATE...");
-          await createForwardedGame(ws, game, gameId);
+          await createForwardedGame(game, gameId);
       }
       
       console.log(`Game ${gameId} ended by checkmate. Winner: ${winnerColor}`);
@@ -1684,7 +1684,7 @@ function handleJoin(ws, data) {
 
       }else{
           console.log("creating a forwarded game -- FROM STALEMATE...");
-          await createForwardedGame(ws, game, gameId);
+          await createForwardedGame(game, gameId);
       }
 
     }else{
@@ -2097,6 +2097,37 @@ function generateNonce() {
     }
   }
   
+
+
+
+  async function gameStateMem(req, res) {
+      const { game_hash } = req.params;
+
+      const game = games.get(game_hash);
+      
+      if (!game) {
+        return res.status(404).json({ error: 'No game data found' });
+      }
+    
+      
+
+      game.viewers.add(ws);
+      
+      return res.status(200).json({
+          state: true,
+          // gameData: /latest,
+          duration: latest.duration,
+          game_state: latest.game_state,
+          bet_status: latest.bet_status,
+      });
+    
+      // console.log(`New viewer for game ${game_hash}`);
+  }
+  
+
+  app.get(MAIN_DIR+'/gameDataMem/:game_hash', gameStateMem); // Get latest state
+
+
 
   // async function processGamePayout(gameId, endCondition, winner= null) {
   //   const game = games.get(gameId);
