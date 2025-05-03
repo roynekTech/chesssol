@@ -540,6 +540,7 @@ async function processMove(gameId, fen, client, clientTime) {
         'SELECT * FROM games WHERE game_id = ?',
         [gameId]
       );
+      
   
       if (games.length === 0) return { error: 'Game not found' };
       const game = games[0];
@@ -574,6 +575,8 @@ async function processMove(gameId, fen, client, clientTime) {
     } catch (err) {
       console.error('Move error:', err);
       return { error: 'Internal server error' };
+    }finally {
+        if (connection) connection.release();
     }
   }
 
@@ -732,6 +735,10 @@ async function processMove(gameId, fen, client, clientTime) {
             msg: 'Internal Server Error',
         });
     }
+
+    finally {
+        if (connection) connection.release();
+    }
 }
 
 async function listGames(req, res) {
@@ -759,6 +766,10 @@ async function listGames(req, res) {
             status: false,
             msg: 'Internal Server Error',
         });
+    }
+
+    finally {
+        if (connection) connection.release();
     }
 }
 
