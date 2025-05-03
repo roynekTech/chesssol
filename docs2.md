@@ -207,20 +207,22 @@ example: curl -X GET http://localhost:3000/chesssol/backend/gameData/6d15fd86-ee
 }
 ```
 
-list games
+#### 6. list games
 
 curl "http://localhost:3000/chesssol/backend/listGames"
 
 curl "http://localhost:3000/chesssol/backend/listGames?mode=checkmate"
 
+curl "https://chesssol.com/api/chesssol/backend/listGames"
+
 {"status":true,"msg":"Games listed successfully","data":[{"bet_status":1,"player_amount":"1.00000000","duration":600000,"current_fen":"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1","time_difference":null,"game_state":"active"},{"bet_status":1,"player_amount":"1.00000000","duration":600000,"current_fen":"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1","time_difference":null,"game_state":"active"},
 
-
-view games
+#### 7. view games
 
 curl  "http://local
 host:3000/chesssol/backend/viewGame?gameId=421a396d-4c1f-44ed-b057-66e262fc2e58"
 
+curl  "https://chesssol.com/api/chesssol/backend/viewGame?gameId=1b3dd3f2-601e-4b02-a110-2c976ff43a84"
 
 {
   "status": true,

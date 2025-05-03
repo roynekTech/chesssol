@@ -705,7 +705,7 @@ async function processMove(gameId, fen, client, clientTime) {
     try {
         const connection = await getDbConnection();
         const [rows] = await connection.execute(
-            `SELECT bet_status, player_amount, entire_game, duration, move_history, current_fen, time_difference, game_state
+            `SELECT player1, player2, bet_status, player_amount, entire_game, duration, move_history, current_fen, time_difference, game_state
              FROM games
              WHERE game_hash = ?
              LIMIT 1`,
@@ -740,7 +740,7 @@ async function listGames(req, res) {
     try {
         const connection = await getDbConnection();
         const [rows] = await connection.execute(
-            `SELECT bet_status, player_amount, duration, current_fen, time_difference, game_hash, game_state
+            `SELECT player1, player2, bet_status, player_amount, duration, current_fen, time_difference, game_hash, game_state
             FROM games
             WHERE game_state = ?
             ORDER BY timestamp DESC`,
