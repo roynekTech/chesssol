@@ -519,7 +519,7 @@ function handleJoin(ws, data) {
 
       }else{
           console.log("creating a forwarded game -- FROM ADMIN TIMEOUT...");
-          await createForwardedGame(activeGame, gameId);
+          await createForwardedGame(ws, activeGame, gameId);
       }
 
     }, duration * 3);
@@ -562,7 +562,7 @@ function handleJoin(ws, data) {
     
 }
   
-  async function createForwardedGame(game, prev_gameId){
+  async function createForwardedGame(ws, game, prev_gameId){
         const gameId = uuidv4();
         const chess = new Chess();
         let config;
@@ -759,7 +759,7 @@ function handleJoin(ws, data) {
 
           }else{
               console.log("creating a forwarded game -- FROM ADMIN TIMEOUT...");
-              await createForwardedGame(activeGame, gameId);
+              await createForwardedGame(ws, activeGame, gameId);
           }
 
         }, duration * 3);
@@ -1416,7 +1416,7 @@ function handleJoin(ws, data) {
 
     }else{
         console.log("creating a forwarded game");
-        await createForwardedGame(game, gameId);
+        await createForwardedGame(ws, game, gameId);
     }
     
     //TODO, update the game state in the db and make possible pay-outs
@@ -1583,7 +1583,7 @@ function handleJoin(ws, data) {
 
       }else{
           console.log("creating a forwarded game -- FROM CHECKMATE...");
-          await createForwardedGame(game, gameId);
+          await createForwardedGame(ws, game, gameId);
       }
       
       console.log(`Game ${gameId} ended by checkmate. Winner: ${winnerColor}`);
@@ -1684,7 +1684,7 @@ function handleJoin(ws, data) {
 
       }else{
           console.log("creating a forwarded game -- FROM STALEMATE...");
-          await createForwardedGame(game, gameId);
+          await createForwardedGame(ws, game, gameId);
       }
 
     }else{

@@ -379,7 +379,7 @@ async function getGameData(req, res) {
             bet_status: latest.bet_status,
         });
 
-        console.log("output134s");
+        // console.log("output134s");
 
     } catch (error) {
         console.error('Error getting game data:', error);

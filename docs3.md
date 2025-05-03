@@ -198,7 +198,8 @@ All messages must be JSON objects with a `type` field indicating the message typ
 ```json
 {
   "type": "viewGame",
-  "gameId": "uuid123"
+  "gameId": "uuid123",
+  "walletAddress": "GHRJR28..."
 }
 ```
 
