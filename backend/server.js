@@ -50,6 +50,15 @@ app.get(MAIN_DIR+'/viewGame', gameHandlers.viewGames); // Get latest state
 app.get(MAIN_DIR+'/listGames', gameHandlers.listGames); // Get latest state
 
 
+app.post(MAIN_DIR+'/create-tournament', gameHandlers.create_tournament);
+app.post(MAIN_DIR+'/join-tournament', gameHandlers.join_tournament);
+app.post(MAIN_DIR+'/update-score', gameHandlers.update_score);
+
+app.get(MAIN_DIR+'/tournaments', gameHandlers.tournaments);
+app.get(MAIN_DIR+'/tournament/:unique_hash', gameHandlers.tournament); 
+
+
+
 
 // Start HTTP server
 const httpServer = app.listen(port, () => {
@@ -359,7 +368,8 @@ function handleJoin(ws, data) {
     if(!data.config){
       //use the default configurations
       // config = {randomStart: false, moveTimeout: duration, numberOfGames: 1 };
-      config = {randomStart: true, moveTimeout: duration, numberOfGames: 1 };
+      let ranCondi = (isBetting) ? true : false;
+      config = {randomStart: ranCondi, moveTimeout: duration, numberOfGames: 1, resignationTime: null, abortTimeout: null};
     }else{
       config = data.config;
     }
@@ -451,7 +461,7 @@ function handleJoin(ws, data) {
         type: 'gameEnded',
         reason: 'timeout',
         message: 'Game ended by Automatic General Game Timer.'
-      });
+      }, 1);
       
       if(activeGame.status === 'active'){
         let winnerColor = activeGame.chess.turn() === 'w' ? 'b' : 'w';
@@ -687,7 +697,7 @@ function handleJoin(ws, data) {
             type: 'gameEnded',
             reason: 'timeout',
             message: 'Game ended by Automatic General Game Timer.'
-          });
+          }, 1);
           
           if(activeGame.status === 'active'){
             let winnerColor = activeGame.chess.turn() === 'w' ? 'b' : 'w';
@@ -773,7 +783,20 @@ function handleJoin(ws, data) {
 
             
         // Respond to client
-        ws.send(JSON.stringify({
+        // ws.send(JSON.stringify({
+        //     type: 'created',
+        //     gameId,
+        //     fen: chess.fen(),
+        //     color: assignedColor,
+        //     isBetting: isBetting,
+        //     playerAmount: isBetting ? data.playerAmount : null,
+        //     mode: "forwarded",
+        //     duration: duration,
+        //     nonce: generateNonce()
+        // }));
+
+        broadcastToAll(gameId,
+          {
             type: 'created',
             gameId,
             fen: chess.fen(),
@@ -783,7 +806,8 @@ function handleJoin(ws, data) {
             mode: "forwarded",
             duration: duration,
             nonce: generateNonce()
-        }));
+        }, 3
+        )
 
         console.log(`Game ${gameId} created - in Forwarded -`, { 
             isBetting,
@@ -867,9 +891,11 @@ function handleJoin(ws, data) {
       type: 'joined',
       gameId: data.gameId,
       fen: game.chess.fen(),
-      isBetting: game.isBetting
+      isBetting: game.isBetting,
+      // config: JSON.stringify(game.config)
     };
-  
+    joinData.config = game.config;
+
     // Add betting details if applicable
     if (game.isBetting) {
       joinData.betDetails = {
@@ -911,10 +937,12 @@ function handleJoin(ws, data) {
             player1: game.wallets[0],
             player2: game.wallets[1],
             bet_status: isBetting,
-            move_history: JSON.stringify(["rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"]), // Initial FEN
+            move_history: JSON.stringify([game.chess.fen()]), // Initial FEN
+            // move_history: JSON.stringify(["rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"]),
             start_date: new Date(),
             duration: game.duration,
-            current_fen: JSON.stringify(["rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"]) // same thing like the move_history above...
+            // current_fen: JSON.stringify(game.chess.fen()) // same thing like the move_history above...
+            current_fen: game.chess.fen()
         };
 
         if (isBetting) {
@@ -1741,13 +1769,34 @@ function handleJoin(ws, data) {
   //   });
   // }
 
-  function broadcastToAll(game, message, type=false) {
-    const allParticipants = [...game.players, ...game.viewers];
-    allParticipants.forEach(participant => {
-      if (participant.readyState === WebSocket.OPEN) {
-        participant.send(JSON.stringify(message));
-      }
-    });
+  function broadcastToAll(game, message, to=3, type=false) {
+    // 3 = "all", 2 = viewers, 1 = players
+    if(to === 3){
+      const allParticipants = [...game.players, ...game.viewers];
+      allParticipants.forEach(participant => {
+        if (participant.readyState === WebSocket.OPEN) {
+          participant.send(JSON.stringify(message));
+        }
+      });
+    }
+    else if(to === 2){
+      const allParticipants = [...game.viewers];
+      allParticipants.forEach(participant => {
+        if (participant.readyState === WebSocket.OPEN) {
+          participant.send(JSON.stringify(message));
+        }
+      });
+    }
+    else if(to === 1){
+      const allParticipants = [...game.players];
+      allParticipants.forEach(participant => {
+        if (participant.readyState === WebSocket.OPEN) {
+          participant.send(JSON.stringify(message));
+        }
+      });
+    }
+    
+    
 
 
     // if(end){
@@ -1987,7 +2036,7 @@ function generateNonce() {
 
     // Use execute for secure, parameterized query
     const [rows] = await query(
-      'SELECT paymentStatus FROM games WHERE game_hash = ?', 
+      'SELECT game_state, paymentStatus FROM games WHERE game_hash = ?', 
       [gameId]
     );
 
@@ -1997,7 +2046,12 @@ function generateNonce() {
       return { state: 0, msg };
     }
 
-    if (rows[0].paymentStatus === 'paid') {
+    // Handle both array and direct object cases
+    const paymentStatus = Array.isArray(rows) ? rows[0]?.paymentStatus : rows?.paymentStatus;
+
+    console.log(`Row: ${JSON.stringify(rows)}`);
+
+    if (paymentStatus === 'paid') {
       const msg = `Payment already processed for game ${gameId}`;
       console.log(msg);
       return { state: 0, msg };
@@ -2094,16 +2148,26 @@ function generateNonce() {
     }
   
     // Process payouts
+    let payoutSignatures = [];
     try {
       for (let p of payouts) {
         const { to, amount } = p;
         const result = await transferSol(to, parseFloat(amount));
-        if (!result.success) throw result.error;
-        console.log(`Transferred ${amount} SOL to ${to}`);
+        if (!result.success) {
+          throw result.error;
+          // console.log("transfer was not so successful");
+        }else if(result.success && result.signature){
+          console.log(`Transferred ${amount} SOL to ${to}`);
+          payoutSignatures.push(result.signature);
+        }else{
+          console.log("unknwon error conditions in payment - fix required")
+        }
+        
+        
       }
   
       // Final DB update to mark as paid
-      await connection.query('UPDATE games SET paymentStatus = ? WHERE game_hash = ?', ['paid', gameId]);
+      await query('UPDATE games SET paymentStatus = ? WHERE game_hash = ?', ['paid', gameId]);
       const msg = `Payout for game ${gameId} processed successfully.`;
       console.log(msg);
       return { state: 1, msg };
@@ -2111,7 +2175,7 @@ function generateNonce() {
       const msg = `Error during payout for game ${gameId}: ${err.message}`;
       console.error(msg);
       // Optional: Revert 'processing' status or mark as 'failed'
-      await connection.query('UPDATE games SET paymentStatus = ? WHERE game_hash = ?', ['error', gameId]);
+      await query('UPDATE games SET paymentStatus = ? WHERE game_hash = ?', ['error', gameId]);
       return { state: 0, msg };
     }
     

@@ -3,7 +3,9 @@
 const WebSocket = require('ws');
 
 // Test Data
-const wsUrl = 'ws://your-server-address/chesssol/backend/ws';
+// const wsUrl = 'ws://your-server-address/chesssol/backend/ws';
+const wsUrl = 'ws://localhost:3000/chesssol/backend/ws';
+// const wsUrl = 'wss://chesssol.com/api/chesssol/backend/ws';
 const companyAddress = 'che8nUkgbX8RLgMsouwVoa6ezdGgTkpU2vZc6kxJ7UH';
 
 // Simulate wallets and their transaction hashes
@@ -121,7 +123,7 @@ ws2.on('message', (data) => {
       sendWhenReady(ws2, {
         type: 'resign',
         gameId: gameId,
-        playerId: wallet2
+        walletAddress: wallet2
       });
     }, 8000);
   }

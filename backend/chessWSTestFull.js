@@ -6,8 +6,8 @@ const { transferSol } = require('./solanaUtils');
 
 // Setup
 // const wsUrl = 'ws://your-server-address/chesssol/backend/ws';
-// const wsUrl = 'ws://localhost:3000/chesssol/backend/ws';
-const wsUrl = 'wss://chesssol.com/api/chesssol/backend/ws';
+const wsUrl = 'ws://localhost:3000/chesssol/backend/ws';
+// const wsUrl = 'wss://chesssol.com/api/chesssol/backend/ws';
 const companyAddress = 'che8nUkgbX8RLgMsouwVoa6ezdGgTkpU2vZc6kxJ7UH';
 
 // Test wallets (assumed dummy for test, or real on devnet)

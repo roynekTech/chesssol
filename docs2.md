@@ -241,6 +241,74 @@ curl  "https://chesssol.com/api/chesssol/backend/viewGame?gameId=1b3dd3f2-601e-4
 
 
 
+#### 8. create tournament
+
+curl -X POST http://localhost:3000/chesssol/backend/create-tournament \
+-H "Content-Type: application/json" \
+-d '{
+  "name": "My First Cup",
+  "description": "A high-stakes chess event.",
+  "link": "https://chess-tournament.com",
+  "wallets": ["walletA", "walletB", "walletC"],
+  "configuration": { "mode": "rapid", "max_rounds": 4 },
+  "emails": ["test1@example.com", "test2@example.com"]
+}'
+
+curl  "https://chesssol.com/api/chesssol/backend/create-tournament \
+-H "Content-Type: application/json" \
+-d '{
+  "name": "My First Cup",
+  "description": "A high-stakes chess event.",
+  "link": "https://chess-tournament.com",
+  "wallets": ["walletA", "walletB", "walletC"],
+  "configuration": { "mode": "rapid", "max_rounds": 4 },
+  "emails": ["test1@example.com", "test2@example.com"]
+}'
+
+response
+
+{"status":"success","error":false,"msg":"Tournament created successfully","insertId":2,"insertHash":"65b44a56-2b72-41a2-9299-908c97385f59"}
+
+#### 9. join tournament
+
+curl -X POST http://localhost:3000/chesssol/backend/join-tournament \
+-H "Content-Type: application/json" \
+-d '{
+  "unique_hash": "xyz789unique",
+  "walletAddress": "wallet88",
+  "email": "bettor@example.com",
+  "contact": "08098765432",
+  "nickname": "QueenCrusher",
+  "transactionSignature": "abc-signature-123",
+  "paymentAmount": 200
+}'
+
+
+#### 10. update-score
+curl -X POST http://localhost:3000/chesssol/backend/update-score \
+  -H "Content-Type: application/json" \
+  -d '{
+    "unique_hash": "xyz789unique",
+    "walletAddress": "wallet1",
+    "changeValue": 6
+  }'
+
+
+#### 11. list tournaments
+
+curl http://localhost:3000/chesssol/backend/tournaments
+
+
+curl "http://localhost:3000/chesssol/backend/tournaments?status=active"
+
+{"status":true,"error":null,"msg":"Tournaments retrieved successfully","tournaments":[{"tournmt_id":2,"name":"My First Cup","type":"tournament","level":1,"unique_hash":"65b44a56-2b72-41a2-9299-908c97385f59","date":"2025-05-04T16:28:14.000Z","image":"https://example.com/image.png","description":"A high-stakes chess event.","status":"upcoming"}...}
+
+
+#### 12. details about a tournament
+curl http://localhost:3000/chesssol/backend/tournament/xyz789unique
+
+{"status":true,"error":null,"msg":"Tournament retrieved successfully","tournament":{"tournmt_id":1,"name":"My First Cup","description":"A high-stakes chess event.","link":"https://chess-tournament.com","socals":"https://twitter.com/demo","totalPlayers":16,"wallets":["walletA","walletB","walletC"],"transactions":{},"status":"upcoming","isBet":0,"configuration":{"mode":"rapid","max_rounds":4},"nonce":"abc123","registeredNum":2,"changeValue":0,"starterScore":100,"scoring":{"win":3,"draw":1,"loss":0},"image":"https://example.com/image.png","type":"tournament","level":1,"unique_hash":"xyz789unique","winners":["wallet1"],"payoutStatus":"unpaid","contact":{"email":"contact@example.com"},"emails":["test1@example.com","test2@example.com"],"addon":"none","date":"2025-05-04T16:22:52.000Z","timestamp":"2025-05-04T16:22:52.000Z"}}
+
 
 ### WebSocket API Examples
 

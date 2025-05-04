@@ -33,6 +33,8 @@ All messages must be JSON objects with a `type` field indicating the message typ
   "duration": 600000 // default to 300000 - 5 mins
 }
 
+
+
 // Full (betting): isBetting, transactionId, playerAmount
 {
   "type": "create",
@@ -43,6 +45,23 @@ All messages must be JSON objects with a `type` field indicating the message typ
   "playerAmount": 0.5,
   "walletAddress": "0x123..."
 }
+
+//with config
+{
+  "type": "create",
+  "walletAddress": "0x123...",
+  "side": "w",
+  "duration": 300000,
+  "config": {
+    "randomStart": true, 
+    "moveTimeout": 30000, 
+    "numberOfGames": 1, 
+    "resignationTime": "null or integers",
+    "abortTimeout": "null or integers"
+    
+  }
+}
+
 
 ```
 
@@ -108,7 +127,13 @@ All messages must be JSON objects with a `type` field indicating the message typ
     "transactionIds": ["tx123...", "tx456..."]
   },
   "nonce": "Sign this message...",
-  "duration": 300000
+  "duration": 300000,
+  "config": {
+    "randomStart": true, 
+    "moveTimeout": 30000, 
+    "numberOfGames": 1, 
+    "resignationTime": null
+  }
 }
 ```
 

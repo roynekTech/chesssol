@@ -735,6 +735,333 @@ async function poolStats(req, res) {
 
 
 
+// const express = require('express');
+// const router = express.Router();
+// const { query } = require('../db'); // adjust the path as needed
+
+//create-tournament
+async function create_tournament(req, res) {
+  try {
+    const body = req.body;
+
+    const name = body.name || 'Demo Tournament';
+    const description = body.description || 'A demo tournament for testing.';
+    const link = body.link || 'https://example.com';
+    const socals = body.socals || 'https://twitter.com/demo';
+    const totalPlayers = body.totalPlayers || 16;
+    const wallets = JSON.stringify(body.wallets || []);
+    const transactions = JSON.stringify({});
+    const status = "upcoming";
+    const isBet = typeof body.isBet !== 'undefined' ? body.isBet : 0;
+    const configuration = JSON.stringify(body.configuration || { mode: "fast", max_rounds: 5 });
+    const nonce = Math.floor(Math.random() * 100000);
+    const registeredNum = body.registeredNum || 2;
+    const changeValue = body.changeValue || 0;
+    const starterScore = typeof body.starterScore !== 'undefined' ? body.starterScore : 100;
+    const scoring = JSON.stringify(body.scoring || { win: 3, draw: 1, loss: 0 });
+    const image = body.image || 'https://example.com/image.png';
+    const type = body.type || 'tournament';
+    const level = body.level || 1;
+    const unique_hash = body.unique_hash || uuidv4();
+    const winners = JSON.stringify(body.winners || ["wallet1"]);
+    const payoutStatus = body.payoutStatus || 'unpaid';
+    const contact = JSON.stringify(body.contact || { email: 'contact@example.com' });
+    const emails = JSON.stringify(body.emails || ['player1@example.com', 'player2@example.com']);
+    const addon = body.addon || 'none';
+    const date = body.date ? new Date(body.date) : new Date();
+
+    const sql = `
+      INSERT INTO tournament (
+        name, description, link, socals, totalPlayers, wallets, transactions, status, isBet, configuration, nonce,
+        registeredNum, changeValue, starterScore, scoring, image, type, level, unique_hash,
+        winners, payoutStatus, contact, emails, addon, date
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+
+    const params = [
+      name, description, link, socals, totalPlayers, wallets, transactions, status, isBet, configuration, nonce,
+      registeredNum, changeValue, starterScore, scoring, image, type, level, unique_hash,
+      winners, payoutStatus, contact, emails, addon, date
+    ];
+
+    const result = await query(sql, params);
+
+    res.status(201).json({
+      status: 'success',
+      error: false,
+      msg: 'Tournament created successfully',
+      insertId: result.insertId,
+      insertHash: unique_hash
+    });
+  } catch (error) {
+    console.error('Create tournament error:', error);
+    res.status(500).json({
+      status: 'fail',
+      error: true,
+      msg: 'Failed to create tournament',
+      insertId: null,
+      insertHash: null
+    });
+  }
+}
+
+//'/join-tournament'
+async function join_tournament(req, res) {
+  try {
+    const {
+      unique_hash,
+      walletAddress,
+      email,
+      contact,
+      nickname,
+      transactionSignature,
+      paymentAmount
+    } = req.body;
+
+    if (!unique_hash || !walletAddress) {
+      return res.status(400).json({
+        status: 'fail',
+        error: true,
+        msg: 'unique_hash and walletAddress are required',
+        insertId: null,
+        insertHash: null
+      });
+    }
+
+    const rows = await query('SELECT * FROM tournament WHERE unique_hash = ?', [unique_hash]);
+    if (rows.length === 0) {
+      return res.status(404).json({
+        status: 'fail',
+        error: true,
+        msg: 'Tournament not found',
+        insertId: null,
+        insertHash: unique_hash
+      });
+    }
+
+    const tournament = rows[0];
+    const isBet = tournament.isBet;
+    const wallets = JSON.parse(tournament.wallets || '{}');
+    const contacts = JSON.parse(tournament.contact || '{}');
+    const emails = JSON.parse(tournament.emails || '{}');
+    const config = JSON.parse(tournament.configuration || '{}');
+    const transactions = JSON.parse(tournament.transactions || '{}');
+
+    // Already joined check
+    if (wallets[walletAddress]) {
+      return res.status(409).json({
+        status: 'fail',
+        error: true,
+        msg: 'Wallet already registered in this tournament',
+        insertId: null,
+        insertHash: unique_hash
+      });
+    }
+
+    // Betting-specific logic
+    if (isBet) {
+      if (!transactionSignature || typeof paymentAmount === 'undefined') {
+        return res.status(400).json({
+          status: 'fail',
+          error: true,
+          msg: 'Betting tournament requires transactionSignature and paymentAmount.',
+          insertId: null,
+          insertHash: unique_hash
+        });
+      }
+
+      const requiredAmount = config?.entryFee || config?.paymentAmount;
+      if (requiredAmount && Number(paymentAmount) !== Number(requiredAmount)) {
+        return res.status(400).json({
+          status: 'fail',
+          error: true,
+          msg: `Invalid payment amount. Required: ${requiredAmount}`,
+          insertId: null,
+          insertHash: unique_hash
+        });
+      }
+
+      // Store transactionSignature under walletAddress
+      transactions[walletAddress] = transactionSignature;
+    }
+
+    // Append user info
+    wallets[walletAddress] = {
+      ...(email ? { email } : {}),
+      ...(contact ? { contact } : {}),
+      ...(nickname ? { nickname } : {})
+    };
+
+    if (email) emails[walletAddress] = email;
+    if (contact) contacts[walletAddress] = contact;
+
+    const newRegisteredNum = tournament.registeredNum + 1;
+
+    const updateSQL = `
+      UPDATE tournament
+      SET wallets = ?, contact = ?, emails = ?, registeredNum = ?, transactions = ?
+      WHERE unique_hash = ?
+    `;
+    const params = [
+      JSON.stringify(wallets),
+      JSON.stringify(contacts),
+      JSON.stringify(emails),
+      newRegisteredNum,
+      JSON.stringify(transactions),
+      unique_hash
+    ];
+
+    await query(updateSQL, params);
+
+    return res.status(200).json({
+      status: 'success',
+      error: false,
+      msg: 'Successfully joined tournament',
+      insertId: null,
+      insertHash: unique_hash
+    });
+
+  } catch (error) {
+    console.error('Join tournament error:', error);
+    return res.status(500).json({
+      status: 'fail',
+      error: true,
+      msg: 'Internal server error',
+      insertId: null,
+      insertHash: null
+    });
+  }
+}
+
+//update-score
+async function update_score(req, res) {
+  try {
+    const { unique_hash, walletAddress, changeValue } = req.body;
+
+    if (!unique_hash || !walletAddress || typeof changeValue === 'undefined') {
+      return res.status(400).json({
+        status: 'fail',
+        error: true,
+        msg: 'unique_hash, walletAddress, and changeValue are required',
+        insertId: null,
+        insertHash: null
+      });
+    }
+
+    const rows = await query('SELECT * FROM tournament WHERE unique_hash = ?', [unique_hash]);
+    if (rows.length === 0) {
+      return res.status(404).json({
+        status: 'fail',
+        error: true,
+        msg: 'Tournament not found',
+        insertId: null,
+        insertHash: unique_hash
+      });
+    }
+
+    const tournament = rows[0];
+    const scoring = JSON.parse(tournament.scoring || '{}');
+    const starterScore = tournament.starterScore || 0;
+
+    const currentScore = scoring[walletAddress] || starterScore;
+    const updatedScore = currentScore + Number(changeValue);
+
+    scoring[walletAddress] = updatedScore;
+
+    await query('UPDATE tournament SET scoring = ? WHERE unique_hash = ?', [
+      JSON.stringify(scoring),
+      unique_hash
+    ]);
+
+    return res.status(200).json({
+      status: 'success',
+      error: false,
+      msg: `Score updated for ${walletAddress}`,
+      insertId: null,
+      insertHash: unique_hash
+    });
+
+  } catch (error) {
+    console.error('Update score error:', error);
+    return res.status(500).json({
+      status: 'fail',
+      error: true,
+      msg: 'Internal server error',
+      insertId: null,
+      insertHash: null
+    });
+  }
+}
+
+
+//tournament
+async function tournament (req, res) {
+    const { unique_hash } = req.params;
+  
+    try {
+      const results = await query('SELECT * FROM tournament WHERE unique_hash = ?', [unique_hash]);
+  
+      if (results.length === 0) {
+        return res.status(404).json({
+          status: false,
+          error: 'Tournament not found',
+          msg: `No tournament found for hash: ${unique_hash}`
+        });
+      }
+  
+      res.json({
+        status: true,
+        error: null,
+        msg: 'Tournament retrieved successfully',
+        tournament: results[0]
+      });
+    } catch (err) {
+      res.status(500).json({
+        status: false,
+        error: err.message,
+        msg: 'Database query failed'
+      });
+    }
+}
+
+// GET /tournaments
+async function tournaments (req, res) {
+    let { status } = req.query;
+    status = status?.trim().toLowerCase() || 'all';
+  
+    try {
+      let queryStr = `
+        SELECT 
+          tournmt_id, name, type, level, unique_hash, date, image, description, status 
+        FROM tournament
+      `;
+  
+      const params = [];
+  
+      if (status !== 'all') {
+        queryStr += ' WHERE status = ?';
+        params.push(status);
+      }
+  
+      queryStr += ' ORDER BY date DESC LIMIT 50';
+  
+      const results = await query(queryStr, params);
+  
+      res.json({
+        status: true,
+        error: null,
+        msg: 'Tournaments retrieved successfully',
+        tournaments: results
+      });
+    } catch (err) {
+      res.status(500).json({
+        status: false,
+        error: err.message,
+        msg: 'Database query failed'
+      });
+    }
+}
+
 
 
 module.exports = {
@@ -749,5 +1076,10 @@ module.exports = {
   getGameData, // new - db
   viewGames,
   listGames,  //new
-  poolStats
+  poolStats,    //v new
+  create_tournament,
+  join_tournament,
+  update_score,
+  tournament,
+  tournaments
 };
