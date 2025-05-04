@@ -209,6 +209,7 @@ example: curl -X GET http://localhost:3000/chesssol/backend/gameData/6d15fd86-ee
 
 #### 6. list games
 
+```bash
 curl "http://localhost:3000/chesssol/backend/listGames"
 
 curl "http://localhost:3000/chesssol/backend/listGames?mode=checkmate"
@@ -216,9 +217,11 @@ curl "http://localhost:3000/chesssol/backend/listGames?mode=checkmate"
 curl "https://chesssol.com/api/chesssol/backend/listGames"
 
 {"status":true,"msg":"Games listed successfully","data":[{"bet_status":1,"player_amount":"1.00000000","duration":600000,"current_fen":"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1","time_difference":null,"game_state":"active"},{"bet_status":1,"player_amount":"1.00000000","duration":600000,"current_fen":"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1","time_difference":null,"game_state":"active"},
+```
+
 
 #### 7. view games
-
+```bash
 curl  "http://local
 host:3000/chesssol/backend/viewGame?gameId=421a396d-4c1f-44ed-b057-66e262fc2e58"
 
@@ -238,11 +241,11 @@ curl  "https://chesssol.com/api/chesssol/backend/viewGame?gameId=1b3dd3f2-601e-4
     "game_state": "active"
   }
 }
-
+```
 
 
 #### 8. create tournament
-
+```bash
 curl -X POST http://localhost:3000/chesssol/backend/create-tournament \
 -H "Content-Type: application/json" \
 -d '{
@@ -280,15 +283,17 @@ curl -X POST  "https://chesssol.com/api/chesssol/backend/create-tournament \
     "abortTimeout": "null or integers" 
   },
 
-  <!-- "emails": ["test1@example.com", "test2@example.com"] -->
 }'
-
+```
 
 Response
+```bash
 {"status":"success","error":false,"msg":"Tournament created successfully","insertId":2,"insertHash":"65b44a56-2b72-41a2-9299-908c97385f59"}
+```
 
 #### 9. join tournament
 
+```bash
 curl -X POST http://localhost:3000/chesssol/backend/join-tournament \
 -H "Content-Type: application/json" \
 -d '{
@@ -300,188 +305,329 @@ curl -X POST http://localhost:3000/chesssol/backend/join-tournament \
   "transactionSignature": "abc-signature-123", // for bet
   "paymentAmount": 200 // for bet
 }'
+```
 
 
 Response
+```bash
 {"status":"success","error":false,"msg":"Successfully joined tournament","insertId":null,"insertHash":"7d05ee6b-f555-47d0-b444-046b0c1965be"}
-
+```
 
 #### 10. update-score
+```bash
 curl -X POST http://localhost:3000/chesssol/backend/update-score   -H "Content-Type: application/json"   -d '{
     "unique_hash": "7d05ee6b-f555-47d0-b444-046b0c1965be",
     "walletAddress": "wallet1",
     creatorWalletAddress: "walletCreatx9485",
     "changeValue": 6
   }'
+```
 
 Response
+```bash
 {"status":"success","error":false,"msg":"Score updated for wallet1","insertId":null,"insertHash":"7d05ee6b-f555-47d0-b444-046b0c1965be"}
-
+```
 
 #### 11. list tournaments
-
+```bash
 curl http://localhost:3000/chesssol/backend/tournaments
 
 
 curl "http://localhost:3000/chesssol/backend/tournaments?status=active"
 
-{"status":true,"error":null,"msg":"Tournaments retrieved successfully","tournaments":[{"tournmt_id":2,"name":"My First Cup","type":"tournament","level":1,"unique_hash":"65b44a56-2b72-41a2-9299-908c97385f59","date":"2025-05-04T16:28:14.000Z","image":"https://example.com/image.png","description":"A high-stakes chess event.","status":"upcoming"}...}
-
+{"status":true,"error":null,"msg":"Tournaments retrieved successfully","tournaments":[{"tournmt_id":2,"name":"MyFirstCup","type":"tournament","level":1,"unique_hash":"65b44a56-2b72-41a2-9299-908c97385f59","date":"2025-05-04T16:28:14.000Z","image":"https://example.com/image.png","description":"A high-stakes chess event.","status":"upcoming"}...}
+```
 
 #### 12. details about a tournament
+```bash
 curl http://localhost:3000/chesssol/backend/tournament/xyz789unique
+```
 
+```bash
 {"status":true,"error":null,"msg":"Tournament retrieved successfully","tournament":{"tournmt_id":1,"name":"My First Cup","description":"A high-stakes chess event.","link":"https://chess-tournament.com","socals":"https://twitter.com/demo","totalPlayers":16,"wallets":{},..."addon":"none","date":"2025-05-04T16:22:52.000Z","timestamp":"2025-05-04T16:22:52.000Z"}}
-
-
-
-
-
-
-### WebSocket API Examples
-
-#### 1. Create Game
-**Client**:
-```javascript
-ws.send(JSON.stringify({
-  type: "create"
-}));
 ```
 
-**Server Response**:
+
+
+
+
+# ChessSol Tournament API Documentation
+
+## Base URLs
+- **Local Development**: `http://localhost:3000/chesssol/backend`
+- **Production**: `https://chesssol.com/api/chesssol/backend`
+
+## Authentication
+No authentication required for these endpoints.
+
+## Endpoints
+
+### 1. Create Tournament
+Creates a new tournament with customizable settings.
+
+**Endpoint**: `POST /create-tournament`
+
+#### Parameters
+| Parameter | Type | Required | Description | Default |
+|-----------|------|----------|-------------|---------|
+| walletAddress | string | Yes | Creator's wallet address | - |
+| name | string | No | Tournament name | "Demo Tournament" |
+| description | string | No | Tournament description | "A demo tournament for testing." |
+| link | string | No | Tournament website | "https://example.com" |
+| socals | string | No | Social media link | "https://twitter.com/demo" |
+| totalPlayers | number | No | Maximum players | 16 |
+| isBet | boolean | No | Whether tournament involves betting | 0 (false) |
+| configuration | object | No | Tournament rules/settings | { mode: "fast", max_rounds: 5 } |
+| paymentAmount | number | No | Entry fee for betting tournaments | 0 |
+| starterScore | number | No | Starting score for players | 100 |
+| scoring | object | No | Scoring rules | { win: 3, draw: 1, loss: 0 } |
+| image | string | No | Tournament image URL | "https://example.com/image.png" |
+| type | string | No | Tournament type | "tournament" |
+| level | number | No | Tournament level | 1 |
+| unique_hash | string | No | Custom unique ID | Auto-generated UUID |
+| date | string | No | Tournament date | Current date |
+
+#### Example Requests
+
+**Basic Tournament (Local)**
+```bash
+curl -X POST http://localhost:3000/chesssol/backend/create-tournament \
+-H "Content-Type: application/json" \
+-d '{
+  "name": "Community Chess Cup",
+  "description": "Monthly community tournament",
+  "walletAddress": "0x742d35Cc6634C0532925a3b844Bc454e4438f44e"
+}'
+```
+
+**Betting Tournament (Production)**
+```bash
+curl -X POST https://chesssol.com/api/chesssol/backend/create-tournament \
+-H "Content-Type: application/json" \
+-d '{
+  "name": "High Stakes Championship",
+  "walletAddress": "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
+  "isBet": true,
+  "paymentAmount": 100,
+  "configuration": {
+    "mode": "rapid",
+    "max_rounds": 5,
+    "moveTimeout": 30000
+  }
+}'
+```
+
+#### Response
 ```json
 {
-  "type": "created",
-  "gameId": "abc123",
-  "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-  "color": "w"
+  "status": "success",
+  "error": false,
+  "msg": "Tournament created successfully",
+  "insertId": 5,
+  "insertHash": "7d05ee6b-f555-47d0-b444-046b0c1965be"
 }
 ```
 
-#### 2. Join Game
-**Client**:
-```javascript
-ws.send(JSON.stringify({
-  type: "join",
-  gameId: "abc123"
-}));
+### 2. Join Tournament
+Allows players to join an existing tournament.
+
+**Endpoint**: `POST /join-tournament`
+
+#### Parameters
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| unique_hash | string | Yes | Tournament unique identifier |
+| walletAddress | string | Yes | Player's wallet address |
+| email | string | No | Player's email |
+| contact | string | No | Player's contact info |
+| nickname | string | No | Player's display name |
+| transactionSignature | string | Conditional | Required for betting tournaments |
+| paymentAmount | number | Conditional | Must match entry fee for betting tournaments |
+
+#### Example Requests
+
+**Basic Tournament Join (Local)**
+```bash
+curl -X POST http://localhost:3000/chesssol/backend/join-tournament \
+-H "Content-Type: application/json" \
+-d '{
+  "unique_hash": "7d05ee6b-f555-47d0-b444-046b0c1965be",
+  "walletAddress": "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
+  "nickname": "ChessMaster"
+}'
 ```
 
-**Server Response**:
+**Betting Tournament Join (Production)**
+```bash
+curl -X POST https://chesssol.com/api/chesssol/backend/join-tournament \
+-H "Content-Type: application/json" \
+-d '{
+  "unique_hash": "7d05ee6b-f555-47d0-b444-046b0c1965be",
+  "walletAddress": "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
+  "transactionSignature": "0xabc123...",
+  "paymentAmount": 100
+}'
+```
+
+#### Response
 ```json
 {
-  "type": "joined",
-  "gameId": "abc123",
-  "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-  "color": "b"
+  "status": "success",
+  "error": false,
+  "msg": "Successfully joined tournament",
+  "insertId": null,
+  "insertHash": "7d05ee6b-f555-47d0-b444-046b0c1965be"
 }
 ```
 
-#### 3. Make Move
-**Client**:
-```javascript
-ws.send(JSON.stringify({
-  type: "move",
-  gameId: "abc123",
-  fen: "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1",
-  client: "player_xyz"
-}));
+### 3. Update Score
+Updates a player's score in a tournament.
+
+**Endpoint**: `POST /update-score`
+
+#### Parameters
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| unique_hash | string | Yes | Tournament unique identifier |
+| walletAddress | string | Yes | Player's wallet address |
+| changeValue | number | Yes | Points to add/subtract |
+| creatorWalletAddress | string | No | Tournament creator's wallet (for verification) |
+
+#### Example Request
+```bash
+curl -X POST https://chesssol.com/api/chesssol/backend/update-score \
+-H "Content-Type: application/json" \
+-d '{
+  "unique_hash": "7d05ee6b-f555-47d0-b444-046b0c1965be",
+  "walletAddress": "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
+  "changeValue": 3
+}'
 ```
 
-**Server Broadcast** (to all participants):
+#### Response
 ```json
 {
-  "type": "move",
-  "fen": "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1",
-  "turn": "b",
-  "valid": true
+  "status": "success",
+  "error": false,
+  "msg": "Score updated for 0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
+  "insertId": null,
+  "insertHash": "7d05ee6b-f555-47d0-b444-046b0c1965be"
 }
 ```
 
-#### 4. View Game (Spectator)
-**Client**:
-```javascript
-ws.send(JSON.stringify({
-  type: "viewGame",
-  gameId: "abc123"
-}));
+### 4. List Tournaments
+Retrieves a list of tournaments with optional filtering.
+
+**Endpoint**: `GET /tournaments`
+
+#### Query Parameters
+| Parameter | Type | Description | Default |
+|-----------|------|-------------|---------|
+| status | string | Filter by status (upcoming, active, completed) | all |
+
+#### Example Requests
+
+**All Tournaments (Local)**
+```bash
+curl http://localhost:3000/chesssol/backend/tournaments
 ```
 
-**Server Response**:
+**Active Tournaments (Production)**
+```bash
+curl "https://chesssol.com/api/chesssol/backend/tournaments?status=active"
+```
+
+#### Response
 ```json
 {
-  "type": "viewingGame",
-  "gameId": "abc123",
-  "fen": "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1",
-  "status": "active",
-  "players": 2,
-  "viewers": 1
+  "status": true,
+  "error": null,
+  "msg": "Tournaments retrieved successfully",
+  "tournaments": [
+    {
+      "tournmt_id": 1,
+      "name": "Community Chess Cup",
+      "type": "tournament",
+      "level": 1,
+      "unique_hash": "7d05ee6b-f555-47d0-b444-046b0c1965be",
+      "date": "2025-05-10T00:00:00.000Z",
+      "image": "https://example.com/image.png",
+      "description": "Monthly community tournament",
+      "status": "upcoming"
+    }
+  ]
 }
 ```
 
-#### 5. Chat Message
-**Client**:
-```javascript
-ws.send(JSON.stringify({
-  type: "chat",
-  gameId: "abc123",
-  message: "Good move!",
-  client: "spectator_123"
-}));
+### 5. Get Tournament Details
+Retrieves detailed information about a specific tournament.
+
+**Endpoint**: `GET /tournament/:unique_hash`
+
+#### Example Request
+```bash
+curl https://chesssol.com/api/chesssol/backend/tournament/7d05ee6b-f555-47d0-b444-046b0c1965be
 ```
 
-**Server Broadcast**:
+#### Response
 ```json
 {
-  "type": "chat",
-  "from": "spectator_123",
-  "message": "Good move!"
+  "status": true,
+  "error": null,
+  "msg": "Tournament retrieved successfully",
+  "tournament": {
+    "tournmt_id": 1,
+    "name": "Community Chess Cup",
+    "description": "Monthly community tournament",
+    "link": "https://chess-tournament.com",
+    "socals": "https://twitter.com/demo",
+    "totalPlayers": 16,
+    "wallets": {
+      "0x742d35Cc6634C0532925a3b844Bc454e4438f44e": {
+        "nickname": "ChessMaster"
+      }
+    },
+    "status": "upcoming",
+    "isBet": 0,
+    "configuration": {
+      "mode": "fast",
+      "max_rounds": 5
+    },
+    "starterScore": 100,
+    "scoring": {
+      "0x742d35Cc6634C0532925a3b844Bc454e4438f44e": 100,
+      "win": 3,
+      "draw": 1,
+      "loss": 0
+    },
+    "unique_hash": "7d05ee6b-f555-47d0-b444-046b0c1965be",
+    "date": "2025-05-10T00:00:00.000Z"
+  }
 }
 ```
 
-#### 6. Resign Game
-**Client**:
-```javascript
-ws.send(JSON.stringify({
-  type: "resign",
-  gameId: "abc123",
-  playerId: "player_xyz"
-}));
-```
+## Error Responses
+All endpoints return consistent error formats:
 
-**Server Broadcast**:
 ```json
 {
-  "type": "gameEnded",
-  "winner": "opponent",
-  "reason": "resignation"
+  "status": "fail",
+  "error": true,
+  "msg": "Error description",
+  "insertId": null,
+  "insertHash": null
 }
 ```
 
----
+Common error scenarios:
+- Missing required parameters
+- Tournament not found
+- Wallet already registered
+- Invalid payment amount for betting tournaments
+- Database errors
 
-### Error Examples
-
-#### WebSocket Error
-```json
-{
-  "type": "error",
-  "message": "Game not found"
-}
-```
-
-#### HTTP Error (400)
-```json
-{
-  "error": "Invalid FEN string",
-  "message": "Failed to parse FEN: rnbqkbnr/pppppppp/9/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-}
-```
-
-#### HTTP Error (500)
-```json
-{
-  "error": "Internal server error",
-  "message": "Database connection failed"
-}
-```
+## Best Practices
+1. Always check the `status` field in responses before proceeding
+2. For betting tournaments, verify the `paymentAmount` matches the tournament's requirements
+3. Store the `unique_hash` returned from create-tournament for future operations
+4. Use the `isBet` field to determine if additional betting parameters are required
