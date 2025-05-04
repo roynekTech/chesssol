@@ -3,7 +3,9 @@ const cors = require('cors'); // Add this line
 const { spawn } = require('child_process');
 const path = require('path');
 const { v4: uuidv4, validate } = require('uuid');
-const { getDbConnection } = require('./db');
+// const { getDbConnection } = require('./db');
+const { query, pool, getPoolStats } = require('./db');
+
 const { transferSol } = require('./solanaUtils');
 
 // const app = express();
@@ -42,6 +44,7 @@ app.get(MAIN_DIR+'/games/:gameId/data', gameHandlers.getLatestGameData); // Get 
 app.post(MAIN_DIR+'/games/legal-moves', gameHandlers.getLegalMoves); // Get legal moves
 app.post(MAIN_DIR+'/get_best_move', gameHandlers.getBestMoves); // Get legal moves
 
+app.get(MAIN_DIR+'/db-stats', gameHandlers.poolStats);
 app.get(MAIN_DIR+'/gameData/:game_hash', gameHandlers.getGameData); // Get latest state
 app.get(MAIN_DIR+'/viewGame', gameHandlers.viewGames); // Get latest state
 app.get(MAIN_DIR+'/listGames', gameHandlers.listGames); // Get latest state
@@ -897,7 +900,7 @@ function handleJoin(ws, data) {
 
     // Database insertion (async - doesn't block gameplay)
     try {
-        const connection = await getDbConnection();
+        // const connection = await getDbConnection();
         
         const gameData = {
             game_hash: data.gameId,
@@ -924,12 +927,12 @@ function handleJoin(ws, data) {
         const placeholders = Object.keys(gameData).map(() => '?').join(', ');
         const values = Object.values(gameData);
 
-        await connection.execute(
+        await query(
             `INSERT INTO games (${keys}) VALUES (${placeholders})`,
             values
         );
         
-        connection.release();
+        // connection.release();
         console.log(`Game ${data.gameId} saved to database`);
     } catch (dbError) {
         console.error('Database save failed:', dbError);
@@ -1109,8 +1112,8 @@ function handleJoin(ws, data) {
     
             // 4. Append FEN to DB (lightweight update)
             try {
-                const connection = await getDbConnection();
-                await connection.execute(
+                // const connection = await getDbConnection();
+                await query(
                     `UPDATE games 
                      SET 
                         move_history = JSON_ARRAY_APPEND(COALESCE(move_history, JSON_ARRAY()), '$', ?),
@@ -1118,7 +1121,7 @@ function handleJoin(ws, data) {
                      WHERE game_hash = ?`,
                     [currentFen, currentFen, gameId]
                 );
-                connection.release();
+                // connection.release();
             } catch (dbError) {
                 console.error('DB update failed:', dbError);
             }
@@ -1129,14 +1132,14 @@ function handleJoin(ws, data) {
                   game.status = 'active';
                   let connection ;
                   try {
-                      connection = await getDbConnection();
-                      await connection.execute(
+                      // connection = await getDbConnection();
+                      await query(
                           `UPDATE games 
                           SET game_state = ?
                           WHERE game_hash = ?`,
                           [game.status, gameId]
                       );
-                      connection.release();
+                      // connection.release();
                   } catch (dbError) {
                       console.error('DB update failed for game_state:', dbError);
                   }
@@ -1157,9 +1160,9 @@ function handleJoin(ws, data) {
             }));
         }
 
-        finally {
-            if (connection) connection.release();
-        }
+        // finally {
+        //     if (connection) connection.release();
+        // }
     }
 
 
@@ -1436,8 +1439,8 @@ function handleJoin(ws, data) {
     // game.status = 'resigned';
     let connection ;
     try {
-        connection = await getDbConnection();
-        await connection.execute(
+        // connection = await getDbConnection();
+        await query(
             `UPDATE games 
             SET game_state = ?
             WHERE game_hash = ?`,
@@ -1450,9 +1453,9 @@ function handleJoin(ws, data) {
         console.error('DB update failed (in updateGamesState fucntion) for game_state:', dbError);
     }
 
-    finally {
-        if (connection) connection.release();
-    }
+    // finally {
+    //     if (connection) connection.release();
+    // }
   }
 
   // I had to research and I discovered that Javascript passes variables by reference.
@@ -1980,10 +1983,10 @@ function generateNonce() {
     //   return { state: 0, msg };
     // }
 
-    const connection = await getDbConnection();
+    // const connection = await getDbConnection();
 
     // Use execute for secure, parameterized query
-    const [rows] = await connection.execute(
+    const [rows] = await query(
       'SELECT paymentStatus FROM games WHERE game_hash = ?', 
       [gameId]
     );
@@ -2002,7 +2005,7 @@ function generateNonce() {
 
     // Attempt to mark payment as "processing" to avoid double payouts
     try {
-      await connection.execute(
+      await query(
         'UPDATE games SET paymentStatus = ? WHERE game_hash = ?', 
         ['processing', gameId]
       );
@@ -2013,9 +2016,9 @@ function generateNonce() {
       return { state: 0, msg };
     }
 
-    finally {
-        if (connection) connection.release();
-    }
+    // finally {
+    //     if (connection) connection.release();
+    // }
 
   
     const amount = game.playerAmount * 2;
@@ -2110,9 +2113,11 @@ function generateNonce() {
       // Optional: Revert 'processing' status or mark as 'failed'
       await connection.query('UPDATE games SET paymentStatus = ? WHERE game_hash = ?', ['error', gameId]);
       return { state: 0, msg };
-    }finally {
-        if (connection) connection.release();
     }
+    
+    // finally {
+    //     if (connection) connection.release();
+    // }
   }
   
 

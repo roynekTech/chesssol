@@ -1,6 +1,6 @@
 // gameHandlers.js
 // const db = require('./db');
-const { query, pool, getPoolStats } = require('./db');
+const { getDbConnection } = require('./db');
 const { Chess } = require('chess.js');
 const { v4: uuidv4 } = require('uuid');
 const { spawn } = require('child_process');
@@ -11,179 +11,211 @@ function assignRandomSide() {
   return Math.random() < 0.5 ? 'w' : 'b';
 }
 
-async function createGame(req, res) {
-  const { walletAddress, side, isBetting, transactionId, playerAmount, game_hash, startDate } = req.body;
 
-  try {
-    // Validate required fields
-    if (!walletAddress) {
-      return res.status(400).json({ error: 'Wallet address is required' });
+async function createGame(req, res){
+    const { walletAddress, side, isBetting, transactionId, playerAmount, game_hash, startDate } = req.body;
+    
+    try {
+        const connection = await getDbConnection();
+        
+        // Validate required fields
+        if (!walletAddress) {
+            return res.status(400).json({ error: 'Wallet address is required' });
+        }
+
+        let d_game_hash = (!game_hash) ? uuidv4() : game_hash;
+        
+        // Determine player positions
+        let player1 = "";
+        let player2 = "";
+        const assignedSide = side === 'random' ? assignRandomSide() : side;
+        
+        if (assignedSide === 'w') {
+            player1 = walletAddress;
+        } else {
+            player2 = walletAddress;
+        }
+        
+        // Prepare game data
+        const gameData = {
+            game_state: 'starting',
+            player1,
+            player2,
+            bet_status: isBetting || false,
+            game_hash: d_game_hash,
+            start_date: startDate || new Date(),
+            timestamp: new Date()
+        };
+        
+        // Add betting-specific fields if it's a betting game
+        if (isBetting) {
+        if (!transactionId || !playerAmount) {
+            return res.status(400).json({ error: 'Transaction ID and player amount are required for betting games' });
+        }
+        gameData.transaction_id = transactionId;
+        gameData.player_amount = playerAmount;
+        }
+        
+        // Insert into database
+        // const [result] = await connection.execute(
+        //   'INSERT INTO games SET ?',
+        //   [gameData]
+        // );
+        const keys = Object.keys(gameData).join(', ');
+        const placeholders = Object.keys(gameData).map(() => '?').join(', ');
+        const values = Object.values(gameData);
+
+        const [result] = await connection.execute(
+        `INSERT INTO games (${keys}) VALUES (${placeholders})`,
+        values
+        );
+
+        //TODO: if you are using a pool, I believe you do not use end? so use the pool current or go back to useing the db.connect
+        // connection.end();
+        connection.release();
+        
+        res.status(201).json({
+            game_id: result.insertId,
+            message: 'Game created successfully',
+            player_position: assignedSide === 'w' ? 'player1 (white)' : 'player2 (black)',
+            game_hash: d_game_hash
+        });
+    } catch (error) {
+        console.error('Error creating game:', error);
+        res.status(500).json({ error: 'Internal server error' });
     }
-
-    const d_game_hash = game_hash || uuidv4();
-
-    // Determine player positions
-    const assignedSide = side === 'random' ? assignRandomSide() : side;
-    const player1 = assignedSide === 'w' ? walletAddress : '';
-    const player2 = assignedSide === 'b' ? walletAddress : '';
-
-    // Prepare game data
-    const gameData = {
-      game_state: 'starting',
-      player1,
-      player2,
-      bet_status: isBetting || false,
-      game_hash: d_game_hash,
-      start_date: startDate || new Date(),
-      timestamp: new Date()
-    };
-
-    // Add betting-specific fields if it's a betting game
-    if (isBetting) {
-      if (!transactionId || !playerAmount) {
-        return res.status(400).json({ error: 'Transaction ID and player amount are required for betting games' });
-      }
-      gameData.transaction_id = transactionId;
-      gameData.player_amount = playerAmount;
-    }
-
-    // Dynamically construct query
-    const keys = Object.keys(gameData).join(', ');
-    const placeholders = Object.keys(gameData).map(() => '?').join(', ');
-    const values = Object.values(gameData);
-
-    const result = await query(
-      `INSERT INTO games (${keys}) VALUES (${placeholders})`,
-      values
-    );
-
-    res.status(201).json({
-      game_id: result.insertId,
-      message: 'Game created successfully',
-      player_position: assignedSide === 'w' ? 'player1 (white)' : 'player2 (black)',
-      game_hash: d_game_hash
-    });
-  } catch (error) {
-    console.error('Error creating game:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
 }
 
-
-async function joinGame(req, res) {
+async function joinGame(req, res){
     const { gameId } = req.params;
     const { walletAddress, side, transactionId } = req.body;
-
-    let connection;
-
+    
     try {
-        connection = await pool.getConnection();
-
+        const connection = await getDbConnection();
+        
         // Get the game
-        const [games] = await connection.query(
-            'SELECT * FROM games WHERE game_id = ?',
-            [gameId]
+        const [games] = await connection.execute(
+        'SELECT * FROM games WHERE game_id = ?',
+        [gameId]
         );
-
+        
         if (games.length === 0) {
-            return res.status(404).json({ error: 'Game not found' });
+        return res.status(404).json({ error: 'Game not found' });
         }
-
+        
         const game = games[0];
-
+        
         // Validate the game can be joined
         if (game.game_state !== 'starting') {
-            return res.status(400).json({ error: 'Game is not in starting state' });
+        return res.status(400).json({ error: 'Game is not in starting state' });
         }
-
+        
         // Check if wallet is already in the game
         if (game.player1 === walletAddress || game.player2 === walletAddress) {
-            return res.status(400).json({ error: 'You are already in this game' });
+        return res.status(400).json({ error: 'You are already in this game' });
         }
-
-        // Handle betting
+        
+        // Check betting requirements
         if (game.bet_status) {
-            if (!transactionId) {
-                return res.status(400).json({ error: 'Transaction ID is required for betting games' });
-            }
-
-            const updatedTxId = game.transaction_id
-                ? `${game.transaction_id}|${transactionId}`
-                : transactionId;
-
-            await connection.query(
-                'UPDATE games SET transaction_id = ? WHERE game_id = ?',
-                [updatedTxId, gameId]
-            );
+        if (!transactionId) {
+            return res.status(400).json({ error: 'Transaction ID is required for betting games' });
         }
-
-        // Assign player position
-        let updateField = null;
-        if (!game.player1) {
-            updateField = 'player1';
-        } else if (!game.player2) {
-            updateField = 'player2';
-        } else {
-            return res.status(400).json({ error: 'No available position to join this game' });
-        }
-
-        await connection.query(
-            `UPDATE games SET ${updateField} = ?, game_state = 'running' WHERE game_id = ?`,
-            [walletAddress, gameId]
+        
+        // Update transaction ID with delimiter if needed
+        // TODO: use a stronger delimeter
+        const updatedTxId = game.transaction_id 
+            ? `${game.transaction_id}|${transactionId}`
+            : transactionId;
+        
+        await connection.execute(
+            'UPDATE games SET transaction_id = ? WHERE game_id = ?',
+            [updatedTxId, gameId]
         );
-
+        }
+        
+        // Determine which player position to fill
+        let updateField;
+        // if (!game.player1 && (side === 'w' || (!side && !game.player2))) {
+        //   updateField = 'player1';
+        // } else if (!game.player2 && (side === 'b' || (!side && !game.player1))) {
+        //   updateField = 'player2';
+        // } else {
+        //   return res.status(400).json({ error: 'No available position for your selected side' });
+        // }
+        if(game.player1 == ""){
+            updateField = 'player1';
+        }else if (game.player2 == ""){
+            updateField = 'player2';
+        }else{
+            return res.status(400).json({ error: 'No available position for your selected side' });
+        }
+        
+        // Update the game with the joining player
+        await connection.execute(
+        `UPDATE games SET ${updateField} = ?, game_state = 'running' WHERE game_id = ?`,
+        [walletAddress, gameId]
+        );
+        
+        // connection.end();
+        connection.release();
+        
         res.status(200).json({
-            message: 'Successfully joined the game',
-            game_id: gameId,
-            player_position: updateField,
-            game_state: 'running'
+        message: 'Successfully joined the game',
+        game_id: gameId,
+        player_position: updateField,
+        game_state: 'running'
         });
-
     } catch (error) {
         console.error('Error joining game:', error);
         res.status(500).json({ error: 'Internal server error' });
+    }
 
-    } finally {
+    finally {
         if (connection) connection.release();
     }
 }
 
-async function updateGameState(req, res) {
+async function updateGameState(req, res){
     const { gameId } = req.params;
     const { gameState, reward } = req.body;
-
+    
     try {
-        const validStates = ['starting', 'running', 'waiting', 'joined', 'active', 'checkmate', 'aborted', 'abandoned', 'draw'];
+        const connection = await getDbConnection();
+    
+        // const validStates = ['starting', 'running', 'checkmate', 'aborted', 'abandoned', 'draw'];
+        const validStates = ['starting','running','waiting','joined','active','checkmate','aborted','abandoned','draw'];
         if (!validStates.includes(gameState)) {
-            return res.status(400).json({ error: 'Invalid game state' });
+          return res.status(400).json({ error: 'Invalid game state' });
         }
-
+    
         const updateFields = ['game_state'];
         const values = [gameState];
-
+    
         if (reward !== undefined) {
-            updateFields.push('reward');
-            values.push(reward);
+          updateFields.push('reward');
+          values.push(reward);
         }
-
+    
         // Create the SET clause dynamically
         const setClause = updateFields.map(field => `${field} = ?`).join(', ');
-
+    
         // Run the prepared statement
-        await query(
-            `UPDATE games SET ${setClause} WHERE game_id = ?`,
-            [...values, gameId]
+        await connection.execute(
+          `UPDATE games SET ${setClause} WHERE game_id = ?`,
+          [...values, gameId]
         );
-
-        return res.status(200).json({
-            message: 'Game state updated successfully',
-            game_id: gameId,
-            new_state: gameState
+    
+        connection.release(); // Better than .end() for pooled connections
+    
+        res.status(200).json({
+          message: 'Game state updated successfully',
+          game_id: gameId,
+          new_state: gameState
         });
-    } catch (error) {
+      } catch (error) {
         console.error('Error updating game state:', error);
         res.status(500).json({ error: 'Internal server error' });
-    }
+      }
 }
 
 
@@ -192,24 +224,29 @@ async function updateGameData(req, res) {
     const { fen, client, clientTime } = req.body;
 
     try {
+        const connection = await getDbConnection();
+        
         // Validate required fields
         if (!fen || !client) {
+            connection.release();
             return res.status(400).json({ error: 'FEN and client are required' });
         }
 
         // Check if game exists and is running
-        const games = await query(
-            'SELECT * FROM games WHERE game_id = ?',
-            [gameId]
+        const [games] = await connection.execute(
+        'SELECT * FROM games WHERE game_id = ?',
+        [gameId]
         );
 
         if (games.length === 0) {
+            connection.release();
             return res.status(404).json({ error: 'Game not found' });
         }
 
         const game = games[0];
         if (game.game_state !== 'running') {
-            return res.status(400).json({ error: 'Game is not running' });
+        connection.release();
+        return res.status(400).json({ error: 'Game is not running' });
         }
 
         // Verify it's the player's turn
@@ -217,14 +254,20 @@ async function updateGameData(req, res) {
         const currentTurn = chessGame.turn(); // 'w' or 'b'
         const playerSide = client === 'player1' ? 'w' : 'b';
 
-        if (currentTurn === playerSide) {
+        // if (currentTurn !== playerSide) {
+        // connection.release();
+        // return res.status(400).json({ error: 'Not your turn' });
+        // }
+        // console.log(currentTurn + " : " + playerSide);
+        if (currentTurn == playerSide) {
+            connection.release();
             return res.status(400).json({ error: 'Not your turn' });
         }
 
         // Get latest FEN from database
-        const latestData = await query(
-            'SELECT * FROM game_data WHERE game_id = ? ORDER BY timestamp DESC LIMIT 1',
-            [gameId]
+        const [latestData] = await connection.execute(
+        'SELECT * FROM game_data WHERE game_id = ? ORDER BY timestamp DESC LIMIT 1',
+        [gameId]
         );
 
         const moves = await legalMoves(fen);  // ✅ Await this!
@@ -232,12 +275,13 @@ async function updateGameData(req, res) {
         // Validate move if there's previous state
         if (latestData.length > 0) {
             const latestFen = latestData[0].fen_state;
-
+            
             if (latestFen === fen) {
-                return res.status(200).json({
-                    message: 'FEN unchanged',
-                    current_fen: fen,
-                    moves: moves || []  // Just in case it returns undefined
+                    connection.release();
+                    return res.status(200).json({
+                        message: 'FEN unchanged',
+                        current_fen: fen,
+                        moves: moves || []  // Just in case it returns undefined
                 });
             }
 
@@ -245,20 +289,22 @@ async function updateGameData(req, res) {
             try {
                 prevChess.load(fen);
             } catch (e) {
+                connection.release();
                 return res.status(400).json({ error: 'Invalid FEN' });
             }
         }
 
         // Insert new game data
-        await query(
-            'INSERT INTO game_data (game_id, fen_state, client, client_time) VALUES (?, ?, ?, ?)',
-            [gameId, fen, client, clientTime || new Date()]
+        await connection.execute(
+        'INSERT INTO game_data (game_id, fen_state, client, client_time) VALUES (?, ?, ?, ?)',
+        [gameId, fen, client, clientTime || new Date()]
         );
 
-        return res.status(200).json({
-            message: 'Game state updated successfully',
-            current_fen: fen,
-            moves: moves || []  // Just in case it returns undefined
+        connection.release();
+            res.status(200).json({
+                message: 'Game state updated successfully',
+                current_fen: fen,
+                moves: moves || []  // Just in case it returns undefined
         });
 
     } catch (error) {
@@ -302,13 +348,18 @@ async function updateGameData(req, res) {
 //     }
 // }
 
-
 async function getGameData(req, res) {
     const { game_hash } = req.params;
 
     try {
-        // Query the database using the new query function
-        const rows = await query(
+
+        // console.log("output1371290s8194s");
+
+        const connection = await getDbConnection(); //this is a pool
+
+        // console.log("output138194s");
+
+        const [rows] = await connection.execute(
             `SELECT *
              FROM games
              WHERE game_hash = ?
@@ -325,14 +376,20 @@ async function getGameData(req, res) {
 
         return res.status(200).json({
             state: true,
+            // gameData: /latest,
             duration: latest.duration,
             game_state: latest.game_state,
             bet_status: latest.bet_status,
         });
 
+        // console.log("output134s");
+
     } catch (error) {
         console.error('Error getting game data:', error);
         return res.status(500).json({ error: 'Internal server error' });
+    }
+    finally {
+        if (connection) connection.release();
     }
 }
 
@@ -342,36 +399,42 @@ async function getLatestGameData(req, res) {
     const { client, currentFen } = req.body;
 
     try {
-        // Get latest game data using the query function
-        const latestData = await query(
-            'SELECT * FROM game_data WHERE game_id = ? ORDER BY timestamp DESC LIMIT 1',
-            [gameId]
+        const connection = await getDbConnection();
+        
+        // Get latest game data
+        const [latestData] = await connection.execute(
+        'SELECT * FROM game_data WHERE game_id = ? ORDER BY timestamp DESC LIMIT 1',
+        [gameId]
         );
 
         if (latestData.length === 0) {
-            return res.status(404).json({ error: 'No game data found' });
+        connection.release();
+        return res.status(404).json({ error: 'No game data found' });
         }
 
         const latest = latestData[0];
 
         // Check if client's FEN is outdated
         if (currentFen && currentFen === latest.fen_state) {
-            return res.status(200).json({
-                message: 'Client FEN is current',
-                is_current: true,
-                current_fen: currentFen
-            });
+        connection.release();
+        return res.status(200).json({
+            message: 'Client FEN is current',
+            is_current: true,
+            current_fen: currentFen
+        });
         }
 
         // Verify the last move wasn't made by this client
         if (latest.client === client) {
-            return res.status(200).json({
-                message: 'You made the last move',
-                is_current: true,
-                current_fen: latest.fen_state
-            });
+        connection.release();
+        return res.status(200).json({
+            message: 'You made the last move',
+            is_current: true,
+            current_fen: latest.fen_state
+        });
         }
 
+        connection.release();
         res.status(200).json({
             message: 'FEN updated',
             is_current: false,
@@ -383,8 +446,10 @@ async function getLatestGameData(req, res) {
         console.error('Error getting game data:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
+    finally {
+        if (connection) connection.release();
+    }
 }
-
 
 
 async function getLegalMoves(req, res) {
@@ -480,49 +545,52 @@ async function checkGameState(fen) {
 
 async function processMove(gameId, fen, client, clientTime) {
     try {
-        // Validate and fetch current game
-        const games = await query(
-            'SELECT * FROM games WHERE game_id = ?',
-            [gameId]
-        );
-
-        if (games.length === 0) return { error: 'Game not found' };
-        const game = games[0];
-
-        if (game.game_state !== 'running') return { error: 'Game not running' };
-
-        const chess = new Chess(fen);
-        try { 
-            chess.load(fen); 
-        } catch (e) {
-            return { error: 'Could not Load FEN' };
-        }
-        
-        const currentTurn = chess.turn();
-        const playerSide = client === 'player1' ? 'w' : 'b';
-
-        if (currentTurn === playerSide) {
-            return { error: 'Not your turn' };
-        }
-
-        // Save FEN to DB
-        await query(
-            'INSERT INTO game_data (game_id, fen_state, client, client_time) VALUES (?, ?, ?, ?)',
-            [gameId, fen, client, clientTime || new Date()]
-        );
-
-        const moves = chess.moves({ verbose: false });
-
-        return {
-            message: 'Move accepted',
-            fen,
-            moves
-        };
+      const connection = await getDbConnection();
+  
+      // Validate and fetch current game
+      const [games] = await connection.execute(
+        'SELECT * FROM games WHERE game_id = ?',
+        [gameId]
+      );
+      
+  
+      if (games.length === 0) return { error: 'Game not found' };
+      const game = games[0];
+  
+      if (game.game_state !== 'running') return { error: 'Game not running' };
+  
+      const chess = new Chess(fen);
+      try { chess.load(fen); } catch (e) {
+        return { error: 'Could not Load FEN' };
+      }
+      const currentTurn = chess.turn();
+      const playerSide = client === 'player1' ? 'w' : 'b';
+  
+      if (currentTurn === playerSide) {
+        return { error: 'Not your turn' };
+      }
+  
+      // Save FEN to DB
+      await connection.execute(
+        'INSERT INTO game_data (game_id, fen_state, client, client_time) VALUES (?, ?, ?, ?)',
+        [gameId, fen, client, clientTime || new Date()]
+      );
+  
+      const moves = chess.moves({ verbose: false });
+  
+      connection.release();
+      return {
+        message: 'Move accepted',
+        fen,
+        moves
+      };
     } catch (err) {
-        console.error('Move error:', err);
-        return { error: 'Internal server error' };
+      console.error('Move error:', err);
+      return { error: 'Internal server error' };
+    }finally {
+        if (connection) connection.release();
     }
-}
+  }
 
 
   function getBestMove(fen, callback, stockfishPath) {
@@ -640,8 +708,7 @@ async function processMove(gameId, fen, client, clientTime) {
   }
 
 
-
-async function viewGames(req, res) {
+  async function viewGames(req, res) {
     const game_hash = req.query.gameId;
     if (!game_hash) {
         return res.status(400).json({
@@ -651,8 +718,8 @@ async function viewGames(req, res) {
     }
 
     try {
-        // Use the query function to fetch the game data
-        const rows = await query(
+        const connection = await getDbConnection();
+        const [rows] = await connection.execute(
             `SELECT player1, player2, bet_status, player_amount, entire_game, duration, move_history, current_fen, time_difference, game_state
              FROM games
              WHERE game_hash = ?
@@ -680,16 +747,18 @@ async function viewGames(req, res) {
             msg: 'Internal Server Error',
         });
     }
+
+    finally {
+        if (connection) connection.release();
+    }
 }
-
-
 
 async function listGames(req, res) {
     const game_state = req.query.mode || 'active';
 
     try {
-        // Use the query function to list the games
-        const rows = await query(
+        const connection = await getDbConnection();
+        const [rows] = await connection.execute(
             `SELECT player1, player2, bet_status, player_amount, duration, current_fen, time_difference, game_hash, game_state
             FROM games
             WHERE game_state = ?
@@ -711,25 +780,9 @@ async function listGames(req, res) {
             msg: 'Internal Server Error',
         });
     }
-}
 
-
-// Then add this new endpoint (you can replace the existing root endpoint or add a new one)
-async function poolStats(req, res) {
-    try {
-        const stats = getPoolStats();
-        res.json({
-            status: true,
-            msg: 'Pool stats retrieved successfully',
-            data: stats
-        });
-    } catch (error) {
-        console.error('Error retrieving pool stats:', error);
-        res.status(500).json({
-            status: false,
-            msg: 'Internal Server Error',
-            error: error.message
-        });
+    finally {
+        if (connection) connection.release();
     }
 }
 
@@ -748,6 +801,5 @@ module.exports = {
   getBestMoves,
   getGameData, // new - db
   viewGames,
-  listGames,  //new
-  poolStats
+  listGames
 };
