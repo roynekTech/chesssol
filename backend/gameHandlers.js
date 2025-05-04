@@ -744,16 +744,32 @@ async function create_tournament(req, res) {
   try {
     const body = req.body;
 
+
+    if (!body.walletAddress) {
+        return res.status(400).json({
+          status: 'fail',
+          error: true,
+          msg: 'unique_hash and walletAddress are required',
+          insertId: null,
+          insertHash: null
+        });
+    }
+
     const name = body.name || 'Demo Tournament';
     const description = body.description || 'A demo tournament for testing.';
     const link = body.link || 'https://example.com';
     const socals = body.socals || 'https://twitter.com/demo';
     const totalPlayers = body.totalPlayers || 16;
-    const wallets = JSON.stringify(body.wallets || []);
+    // const wallets = JSON.stringify(body.wallets || {}); // {wallet1: "{}"}
+    const wallets = JSON.stringify({});
     const transactions = JSON.stringify({});
     const status = "upcoming";
     const isBet = typeof body.isBet !== 'undefined' ? body.isBet : 0;
     const configuration = JSON.stringify(body.configuration || { mode: "fast", max_rounds: 5 });
+    configuration.creator = body.walletAddress;
+    configuration.paymentAmount = body.paymentAmount || 0;
+    // configuration.entryFee = body.entryFee || body.paymentAmount;
+
     const nonce = Math.floor(Math.random() * 100000);
     const registeredNum = body.registeredNum || 2;
     const changeValue = body.changeValue || 0;
@@ -763,10 +779,11 @@ async function create_tournament(req, res) {
     const type = body.type || 'tournament';
     const level = body.level || 1;
     const unique_hash = body.unique_hash || uuidv4();
-    const winners = JSON.stringify(body.winners || ["wallet1"]);
+    const winners = JSON.stringify(body.winners || {});
     const payoutStatus = body.payoutStatus || 'unpaid';
     const contact = JSON.stringify(body.contact || { email: 'contact@example.com' });
-    const emails = JSON.stringify(body.emails || ['player1@example.com', 'player2@example.com']);
+    // const emails = JSON.stringify(body.emails || ['player1@example.com', 'player2@example.com']);
+    const emails = JSON.stringify({});
     const addon = body.addon || 'none';
     const date = body.date ? new Date(body.date) : new Date();
 
@@ -841,11 +858,36 @@ async function join_tournament(req, res) {
 
     const tournament = rows[0];
     const isBet = tournament.isBet;
-    const wallets = JSON.parse(tournament.wallets || '{}');
-    const contacts = JSON.parse(tournament.contact || '{}');
-    const emails = JSON.parse(tournament.emails || '{}');
-    const config = JSON.parse(tournament.configuration || '{}');
-    const transactions = JSON.parse(tournament.transactions || '{}');
+    console.log(`is wallet:  ${tournament.wallets}`);
+    // const wallets = JSON.parse(tournament.wallets || '{}');
+    // const contacts = JSON.parse(tournament.contact || '{}');
+    // const emails = JSON.parse(tournament.emails || '{}');
+    // const config = JSON.parse(tournament.configuration || '{}');
+    // const transactions = JSON.parse(tournament.transactions || '{}');
+    
+
+    const wallets = typeof tournament.wallets === 'string'
+    ? JSON.parse(tournament.wallets || '{}')
+    : tournament.wallets || {};
+
+    
+    const contacts = typeof tournament.contact === 'string'
+    ? JSON.parse(tournament.contact || '{}')
+    : tournament.contact || {};
+
+    const emails = typeof tournament.emails === 'string'
+    ? JSON.parse(tournament.emails || '{}')
+    : tournament.emails || {};
+
+    const config = typeof tournament.configuration === 'string'
+    ? JSON.parse(tournament.configuration || '{}')
+    : tournament.configuration || {};
+
+    const transactions = typeof tournament.transactions === 'string'
+    ? JSON.parse(tournament.transactions || '{}')
+    : tournament.transactions || {};
+
+
 
     // Already joined check
     if (wallets[walletAddress]) {
@@ -936,7 +978,7 @@ async function join_tournament(req, res) {
 //update-score
 async function update_score(req, res) {
   try {
-    const { unique_hash, walletAddress, changeValue } = req.body;
+    const { unique_hash, walletAddress, creatorWalletAddress, changeValue } = req.body;
 
     if (!unique_hash || !walletAddress || typeof changeValue === 'undefined') {
       return res.status(400).json({
@@ -960,7 +1002,8 @@ async function update_score(req, res) {
     }
 
     const tournament = rows[0];
-    const scoring = JSON.parse(tournament.scoring || '{}');
+    // const scoring = JSON.parse(tournament.scoring || '{}');
+    const scoring = tournament.scoring || '{}';
     const starterScore = tournament.starterScore || 0;
 
     const currentScore = scoring[walletAddress] || starterScore;
