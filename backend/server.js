@@ -446,11 +446,9 @@ function handleJoin(ws, data) {
         // const chess = new Chess(randomFEN);
         game.chess.load(randomFEN);
         
-        // Store in memory
-        games.set(gameId, game);
     }
-    
 
+   
 
     // Set a timeout to auto-end the game after duration * 3
     game.timeout = setTimeout(async () => {
@@ -539,24 +537,11 @@ function handleJoin(ws, data) {
       }
 
     }, duration * 3);
-    
-    // game.timeout = setTimeout(() => {
-    //   const activeGame = games.get(gameId);
-    //   if (!activeGame) return;
-
-    //   broadcastToAll(activeGame, {
-    //     type: 'gameEnded',
-    //     reason: 'timeout',
-    //     message: 'Game ended by Automatic General Game Timer.'
-    //   });
-
-    //   // games.delete(gameId);
-    //   cleanUpAndPayments(game, winnerColor, 'checkmate');
 
 
-    //   console.log(`Game ${gameId} ended automatically after ${duration * 3}ms`);
-    // }, duration * 3);
-        
+     // Store in memory
+     games.set(gameId, game);
+
         
     // Respond to client
     ws.send(JSON.stringify({

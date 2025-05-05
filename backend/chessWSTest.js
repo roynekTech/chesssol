@@ -44,9 +44,9 @@ ws1.on('open', () => {
     walletAddress: wallet1,
     side: 'w', // or "random"
     duration: 600000,
-    isBetting: true,
-    transactionId: transactionId1,
-    playerAmount: playerAmount
+    // isBetting: true,
+    // transactionId: transactionId1,
+    // playerAmount: playerAmount
   });
 });
 
