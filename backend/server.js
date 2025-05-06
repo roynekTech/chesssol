@@ -348,6 +348,8 @@ function handleJoin(ws, data) {
   }
    */
 
+  const AIDefaultWallet = "aiBF7k3AKkSyMY5Y8E3umtPQFAeQf2g4KoaZGngZzr7";
+
 
   async function handleCreate(ws, data) {
     const gameId = uuidv4();
@@ -358,7 +360,6 @@ function handleJoin(ws, data) {
     const duration = data.duration || 300000;
     const isBetting = data.isBetting || false;
     const cat = data.cat || "human"; // can only be "human", "AI" or "pair"
-    const AIDefaultWallet = "aiBF7k3AKkSyMY5Y8E3umtPQFAeQf2g4KoaZGngZzr7";
 
 
     // Handle side selection

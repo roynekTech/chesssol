@@ -94,3 +94,20 @@ socket.send(JSON.stringify({
 #     walletAddress: playerId,
 #     signature: null //placholder for the signature to confirm ownership of wallet address
 # }));
+
+
+cd /var/www/chessol-frontend
+git pull origin main
+npm install
+npm run build
+
+
+git reset --hard HEAD           # Discards all local changes
+
+
+
+cd chesssol
+git pull origin main
+pm2 restart chesssol-app
+
+mysql -u chesssol_user -p chesssol_db
