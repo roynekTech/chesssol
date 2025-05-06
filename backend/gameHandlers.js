@@ -525,6 +525,25 @@ async function processMove(gameId, fen, client, clientTime) {
 }
 
 
+// # Array of Stockfish versions
+// versions=(
+//   "17.1"
+//   "17"
+//   "16.1"
+//   "16"
+//   "15.1"
+//   "15"
+//   "14"
+//   "13"
+//   "12"
+//   "11"
+//   "10"
+//   "9"
+//   "7"
+//   "6"
+//   "5"
+//   "4"
+// )
   function getBestMove(fen, callback, stockfishPath) {
       console.log(`Attempting to launch Stockfish from: ${stockfishPath}`);
       
@@ -1115,6 +1134,7 @@ module.exports = {
   getLatestGameData,
   getLegalMoves,
   processMove, // new
+  getBestMove,
   getBestMoves,
   getGameData, // new - db
   viewGames,

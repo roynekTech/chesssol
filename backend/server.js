@@ -7,6 +7,8 @@ const { v4: uuidv4, validate } = require('uuid');
 const { query, pool, getPoolStats } = require('./db');
 
 const { transferSol } = require('./solanaUtils');
+const fs = require('fs');
+
 
 // const app = express();
 // const port = 8080; //3000;
@@ -107,6 +109,8 @@ const wss = new WebSocket.Server({
 });
 
 const games = new Map(); // Stores active games
+const availablePairGames = new Set(); // store only gameIds of available games
+
 
 wss.on('connection', (ws) => {
   console.log('New client connected');
@@ -344,6 +348,7 @@ function handleJoin(ws, data) {
   }
    */
 
+
   async function handleCreate(ws, data) {
     const gameId = uuidv4();
     const chess = new Chess();
@@ -352,12 +357,16 @@ function handleJoin(ws, data) {
     // Set defaults
     const duration = data.duration || 300000;
     const isBetting = data.isBetting || false;
+    const cat = data.cat || "human"; // can only be "human", "AI" or "pair"
+    const AIDefaultWallet = "aiBF7k3AKkSyMY5Y8E3umtPQFAeQf2g4KoaZGngZzr7";
+
 
     // Handle side selection
     let playerSide = 'random';
     if (data.side && (data.side === 'w' || data.side === 'b')) {
         playerSide = data.side;
-    } else if (data.side) {
+    }else if(data.side === 'random'){} 
+    else if (data.side) {
         return ws.send(JSON.stringify({
             type: 'error',
             message: 'Game side should be random, w or b'
@@ -403,6 +412,7 @@ function handleJoin(ws, data) {
         viewers: new Set(),
         chess,
         status: 'waiting',
+        cat: cat,
         duration: duration,
         isBetting: isBetting,
         transactionIds: isBetting ? [data.transactionId] : [],
@@ -539,29 +549,243 @@ function handleJoin(ws, data) {
     }, duration * 3);
 
 
-     // Store in memory
-     games.set(gameId, game);
+    let paired = false;
+    if (cat === "AI") {
+          game.opponent.walletAddress = AIDefaultWallet;
+          game.status = 'joined'; // Start the game immediately
+          console.log(`AI opponent assigned to game ${gameId}`);
 
+          // Store in memory
+          games.set(gameId, game);
+
+              
+          // Respond to client
+          ws.send(JSON.stringify({
+              type: 'created',
+              gameId,
+              fen: chess.fen(),
+              color: assignedColor,
+              isBetting: isBetting,
+              playerAmount: isBetting ? data.playerAmount : null,
+              duration: duration,
+              nonce: generateNonce()
+          }));
+
+          // Prepare join data
+          const joinData = {
+            type: 'joined',
+            gameId: gameId,
+            fen: game.chess.fen(),
+            isBetting: game.isBetting,
+            // config: JSON.stringify(game.config)
+          };
+          joinData.config = game.config;
+
+          // Add betting details if applicable
+          if (game.isBetting) {
+            joinData.betDetails = {
+              playerAmount: game.playerAmount,
+              transactionIds: game.transactionIds
+            };
+          }
+          
+          // let new_opp = g.creator.side === 'w' ? 'b' : 'w';
+          // g.opponent.side = new_opp;
+          
+          //TODO: add a general create broadcast - this would also help the frontend user flow
+
+          // Notify all players
+          const players = [...game.players];
+          players[0].send(JSON.stringify({
+            ...joinData,
+            color: game.creator.side,
+            nonce: game.nonce,
+            duration: game.duration
+          }));
+
+          console.log(`Game AI - ${gameId} created`, { 
+            isBetting,
+            playerAmount: game.playerAmount,
+            creatorWallet: game.creator.walletAddress 
+          });
+
+
+            // Check if AI is white, make the first move
+          const aiSide = game.opponent.side;
+          if (aiSide === 'w') {
+              const d_level = ['17.1', '17', '16.1', '16', '15.1', '15', '14', '13', '12', '11', '10', '9', '7', '6', '5', '4'];
+              const randomLevel = d_level[Math.floor(Math.random() * d_level.length)];
+              
+              let stockfishPath;
+              console.log(`AI is responding with the - Random level: ${randomLevel}`);
+
+              const relativePath = path.join(__dirname, `../chess-engine/Stockfish-sf_${randomLevel}/src/stockfish`);
+              if (fs.existsSync(relativePath)) {
+                  stockfishPath = relativePath;
+              } else {
+                  stockfishPath = `/home/azureuser/chesssol-backend/backend/chess-engine/Stockfish-sf_${randomLevel}/src/stockfish`;
+              }
+
+              const currentFen = game.chess.fen();
+              gameHandlers.getBestMove(currentFen, (err, move) => {
+                  if (err) {
+                      console.error(`AI (white) failed to get best move: ${err.message}`);
+                      return;
+                  }
+
+                  const result = game.chess.move({ from: move.slice(0, 2), to: move.slice(2, 4), promotion: 'q' });
+                  if (!result) {
+                      console.error('AI move was invalid:', move);
+                      return;
+                  }
+
+                  const currentFen = game.chess.fen();
+                  const ch_nonce = generateNonce();
+
+                  // Broadcast AI's first move
+                  broadcastToAll(game, {
+                      type: 'move',
+                      fen: currentFen,
+                      turn: game.chess.turn(),
+                      valid: true,
+                      lastMove: move,
+                      nonce: ch_nonce
+                  });
+
+                  console.log(`AI made the first move (${move}) in game ${gameId}`);
+              }, stockfishPath);
+          }
+    }
+
+    else if (cat === "pair") {
+        // Look for an available game with no opponent
         
-    // Respond to client
-    ws.send(JSON.stringify({
-        type: 'created',
-        gameId,
-        fen: chess.fen(),
-        color: assignedColor,
-        isBetting: isBetting,
-        playerAmount: isBetting ? data.playerAmount : null,
-        duration: duration,
-        nonce: generateNonce()
-    }));
+        for (let id of availablePairGames) {
+            let g = games.get(id);
+            if (g.cat === "pair" && g.opponent.walletAddress === null && g.creator.walletAddress !== data.walletAddress) {
+                g.opponent.walletAddress = data.walletAddress;
+                g.players.push(ws);
+                g.status = 'joined';
+                availablePairGames.delete(id);
+                // games.set(id, g); // where id is the existing gameId from availablePairGames
+                paired = true;
 
-    console.log(`Game ${gameId} created`, { 
-        isBetting,
-        playerAmount: game.playerAmount,
-        creatorWallet: game.creator.walletAddress 
-    });
+                console.log(`Player paired into existing game ${id}`);
+                
+                // Send confirmation to player who joined
+                // ws.send(JSON.stringify({
+                //     type: 'joined',
+                //     gameId: id,
+                //     fen: g.chess.fen(),
+                //     color: g.opponent.side,
+                //     isBetting: g.isBetting,
+                //     playerAmount: g.playerAmount,
+                //     duration: g.duration,
+                //     nonce: generateNonce()
+                // }));
+
+                
+                // Prepare join data
+                const joinData = {
+                  type: 'joined',
+                  gameId: id,
+                  fen: g.chess.fen(),
+                  isBetting: g.isBetting,
+                  // config: JSON.stringify(game.config)
+                };
+                joinData.config = g.config;
+
+                // Add betting details if applicable
+                if (g.isBetting) {
+                  joinData.betDetails = {
+                    playerAmount: g.playerAmount,
+                    transactionIds: g.transactionIds
+                  };
+                }
+                
+                let new_opp = g.creator.side === 'w' ? 'b' : 'w';
+                // g.opponent.side = new_opp;
+                
+                //TODO: add a general create broadcast - this would also help the frontend user flow
+
+                // Notify all players
+                const players = [...g.players];
+                players[0].send(JSON.stringify({
+                  ...joinData,
+                  color: g.creator.side,
+                  nonce: g.nonce,
+                  duration: g.duration
+                }));
+                
+                players[1].send(JSON.stringify({
+                  ...joinData,
+                  color: g.opponent.side, //new_opp,
+                  nonce: g.nonce,
+                  duration: g.duration
+                }));
+
+                return;
+            }
+        }
+
+        if (!paired) {
+            // console.log("No available opponent - so switching to AI");
+            // game.opponent.walletAddress = AIDefaultWallet;
+            // game.status = 'joined';
+
+            games.set(gameId, game);
+            availablePairGames.add(gameId);
+
+            ws.send(JSON.stringify({
+              type: 'created', //this could be 'waiting' to show some difference and that someone is yet to join them... 
+              gameId,
+              fen: chess.fen(),
+              color: assignedColor,
+              isBetting: isBetting,
+              playerAmount: isBetting ? data.playerAmount : null,
+              duration: duration,
+              nonce: generateNonce()
+          }));
+      
+          console.log(`Game Pair ${gameId} created`, { 
+              isBetting,
+              playerAmount: game.playerAmount,
+              creatorWallet: game.creator.walletAddress 
+          });
+        }
+    }
+
+
+    else if(cat === "human"){
+        // Store in memory
+        games.set(gameId, game);
+
+            
+        // Respond to client
+        ws.send(JSON.stringify({
+            type: 'created',
+            gameId,
+            fen: chess.fen(),
+            color: assignedColor,
+            isBetting: isBetting,
+            playerAmount: isBetting ? data.playerAmount : null,
+            duration: duration,
+            nonce: generateNonce()
+        }));
+    
+        console.log(`Game ${gameId} created`, { 
+            isBetting,
+            playerAmount: game.playerAmount,
+            creatorWallet: game.creator.walletAddress 
+        });
+    }
+
+     
     
 }
+
+
+
   
   async function createForwardedGame(game, prev_gameId){
         const gameId = uuidv4();
@@ -615,6 +839,7 @@ function handleJoin(ws, data) {
             viewers: new Set(),
             chess,
             status: 'waiting',
+            cat: game.cat,
             duration: game.duration,
             isBetting: game.isBetting,
             transactionIds: isBetting ? game.transactionId : [],
@@ -1120,7 +1345,7 @@ function handleJoin(ws, data) {
                 turn: game.chess.turn(),
                 valid: true,
                 lastMove: move,
-                nonce: ch_nonce
+                nonce: game.nonce
             });
     
             // 4. Append FEN to DB (lightweight update)
@@ -1164,7 +1389,45 @@ function handleJoin(ws, data) {
             }
     
             console.log(`Move processed for ${gameId} by ${walletAddress}`);
-    
+
+
+                    // === AUTO-MOVE FOR AI IF IT'S THEIR TURN ===
+            if (game.opponent.walletAddress === AIDefaultWallet && game.chess.turn() === game.opponent.side) {
+                const aiFen = game.chess.fen();
+                const aiSide = game.opponent.side;
+
+                // Pick random engine version
+                const engineVersions = ["17.1", "17", "16.1", "16", "15.1", "15", "14", "13", "12", "11", "10", "9", "7", "6", "5", "4"];
+                const selectedVersion = engineVersions[Math.floor(Math.random() * engineVersions.length)];
+
+                const stockfishPath = fs.existsSync(path.join(__dirname, `../chess-engine/Stockfish-sf_${selectedVersion}/src/stockfish`))
+                    ? path.join(__dirname, `../chess-engine/Stockfish-sf_${selectedVersion}/src/stockfish`)
+                    : `/home/azureuser/chesssol-backend/backend/chess-engine/Stockfish-sf_${selectedVersion}/src/stockfish`;
+
+                getBestMove(aiFen, async (err, aiMove) => {
+                    if (err) return console.error('AI move error:', err.message);
+
+                    const newChess = new Chess();
+                    newChess.load(aiFen);
+                    newChess.move(aiMove);
+                    const newFen = newChess.fen();
+
+                    const aiPlayer = game.players[1]; // AI always 2nd player
+                    const aiAddress = game.opponent.walletAddress;
+
+                    // Recursively call the move handler
+                    await handleMove(aiPlayer, {
+                        gameId: gameId,
+                        fen: newFen,
+                        move: aiMove,
+                        initialFen: aiFen,
+                        walletAddress: aiAddress,
+                        clientTime: Date.now(),
+                        signature: null
+                    });
+                }, stockfishPath);
+            }
+
         } catch (e) {
             console.error('Move error:', e);
             ws.send(JSON.stringify({

@@ -412,7 +412,11 @@ curl -X POST https://chesssol.com/api/chesssol/backend/create-tournament \
   "configuration": {
     "mode": "rapid",
     "max_rounds": 5,
-    "moveTimeout": 30000
+    "moveTimeout": 30000,
+    "randomStart": true, 
+    "numberOfGames": 1, 
+    "resignationTime": "null or integers",
+    "abortTimeout": "null or integers"
   }
 }'
 ```

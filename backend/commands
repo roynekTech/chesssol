@@ -52,7 +52,13 @@ cp -r -f chesssol-backend/backend/chess-engine/ chesssol/backend/chess-engine/
 
 # let wsUrl = 'ws://localhost:3000/chesssol/backend/ws';
 
-let wsUrl = `ws://20.208.128.130:3000/chesssol/backend/ws`;
+# let wsUrl = `ws://20.208.128.130:3000/chesssol/backend/ws`;
+# let wsUrl = 'wss://chesssol.com/api/chesssol/backend/ws';
+
+# let wsUrl = `ws://20.208.128.130:3000/chesssol/backend/ws`;
+
+let wsUrl = 'ws://localhost:3000/chesssol/backend/ws';
+
 let socket = new WebSocket(wsUrl);
 
 socket.addEventListener('open', () => {

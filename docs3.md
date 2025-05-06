@@ -63,6 +63,32 @@ All messages must be JSON objects with a `type` field indicating the message typ
 }
 
 
+// with cat
+
+{
+    "type": "create",
+    "duration": 120000,
+    "cat": "human", //default to human
+    "walletAddress": "testWallet",
+    "side": "random"
+},
+{
+    "type": "create",
+    "duration": 120000,
+    "cat": "pair",
+    "walletAddress": "testWallet",
+    "side": "w"
+},
+{
+    "type": "create",
+    "duration": 120000,
+    "cat": "AI",
+    "walletAddress": "testWallet",
+    "side": "b" // the user is b so AI would play first - handled by create
+},
+
+
+
 ```
 
 **Response (Success):**
