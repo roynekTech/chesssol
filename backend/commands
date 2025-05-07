@@ -82,6 +82,10 @@ socket.send(JSON.stringify({
     type: 'listGames',
 }));
 
+socket.send(JSON.stringify({
+    type: 'stateGame',
+    gameId: '6750f584-76cd-46c0-aa36-6c46fb607d27',
+}));
 
 
 socket.send(JSON.stringify({

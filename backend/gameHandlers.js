@@ -636,7 +636,8 @@ async function processMove(gameId, fen, client, clientTime) {
         stockfishPath = relativePath;
     } else {
     // Fall back to absolute path
-        stockfishPath = `/home/azureuser/chesssol-backend/backend/chess-engine/Stockfish-sf_${d_level}/src/stockfish`;
+        // stockfishPath = `/home/azureuser/chesssol-backend/backend/chess-engine/Stockfish-sf_${d_level}/src/stockfish`;
+        stockfishPath = `/home/azureuser/chesssol/backend/chess-engine/Stockfish-sf_${d_level}/src/stockfish`;
     }
 
       // Validate FEN format

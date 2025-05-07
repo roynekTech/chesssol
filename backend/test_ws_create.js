@@ -2,6 +2,7 @@ const WebSocket = require('ws');
 
 // Adjust to match your WebSocket server URL
 const ws = new WebSocket('ws://localhost:3000/chesssol/backend/ws');
+// const ws = new WebSocket('wss://chesssol.com/api/chesssol/backend/ws');
 
 // Unique wallet address for the test
 const testWallet = 'testWallet123';

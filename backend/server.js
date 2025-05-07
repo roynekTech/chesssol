@@ -359,7 +359,7 @@ function handleJoin(ws, data) {
     // Set defaults
     const duration = data.duration || 300000;
     const isBetting = data.isBetting || false;
-    const cat = data.cat || "human"; // can only be "human", "AI" or "pair"
+    const cat = (!data.cat) ? "human" : data.cat; // can only be "human", "AI" or "pair"
 
 
     // Handle side selection
@@ -611,6 +611,49 @@ function handleJoin(ws, data) {
           });
 
 
+          // Database insertion (async - doesn't block gameplay)
+          try {
+            // const connection = await getDbConnection();
+            const gameData = {
+                game_hash: data.gameId,
+                game_state: 'active',
+                // game_state: 'waiting',
+                // player1: assignedColor === 'w' ? data.walletAddress : "",
+                // player2: assignedColor === 'b' ? data.walletAddress : "",
+                player1: game.wallets[0],
+                player2: game.wallets[1],
+                bet_status: isBetting,
+                move_history: JSON.stringify([game.chess.fen()]), // Initial FEN
+                // move_history: JSON.stringify(["rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"]),
+                start_date: new Date(),
+                duration: game.duration,
+                // current_fen: JSON.stringify(game.chess.fen()) // same thing like the move_history above...
+                current_fen: game.chess.fen()
+            };
+
+            if (isBetting) {
+                gameData.transaction_id = data.transactionId;
+                gameData.player_amount = data.playerAmount;
+                gameData.paymentStatus = 'unpaid';
+            }
+
+            const keys = Object.keys(gameData).join(', ');
+            const placeholders = Object.keys(gameData).map(() => '?').join(', ');
+            const values = Object.values(gameData);
+
+            await query(
+                `INSERT INTO games (${keys}) VALUES (${placeholders})`,
+                values
+            );
+            
+            // connection.release();
+            console.log(`Game ${data.gameId} saved to database`);
+          } catch (dbError) {
+              console.error('Database save failed:', dbError);
+              // Continue even if DB fails - game exists in memory
+          }
+
+
             // Check if AI is white, make the first move
           const aiSide = game.opponent.side;
           if (aiSide === 'w') {
@@ -725,6 +768,50 @@ function handleJoin(ws, data) {
                   duration: g.duration
                 }));
 
+
+                // Database insertion (async - doesn't block gameplay)
+                try {
+                    // const connection = await getDbConnection();
+                    
+                    const gameData = {
+                        game_hash: data.gameId,
+                        game_state: 'active',
+                        // game_state: 'waiting',
+                        // player1: assignedColor === 'w' ? data.walletAddress : "",
+                        // player2: assignedColor === 'b' ? data.walletAddress : "",
+                        player1: g.wallets[0],
+                        player2: g.wallets[1],
+                        bet_status: isBetting,
+                        move_history: JSON.stringify([g.chess.fen()]), // Initial FEN
+                        // move_history: JSON.stringify(["rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"]),
+                        start_date: new Date(),
+                        duration: g.duration,
+                        // current_fen: JSON.stringify(game.chess.fen()) // same thing like the move_history above...
+                        current_fen: g.chess.fen()
+                    };
+
+                    if (isBetting) {
+                        gameData.transaction_id = data.transactionId;
+                        gameData.player_amount = data.playerAmount;
+                        gameData.paymentStatus = 'unpaid';
+                    }
+
+                    const keys = Object.keys(gameData).join(', ');
+                    const placeholders = Object.keys(gameData).map(() => '?').join(', ');
+                    const values = Object.values(gameData);
+
+                    await query(
+                        `INSERT INTO games (${keys}) VALUES (${placeholders})`,
+                        values
+                    );
+                    
+                    // connection.release();
+                    console.log(`Game ${data.gameId} saved to database`);
+                } catch (dbError) {
+                    console.error('Database save failed:', dbError);
+                    // Continue even if DB fails - game exists in memory
+                }
+
                 return;
             }
         }
@@ -779,6 +866,11 @@ function handleJoin(ws, data) {
             playerAmount: game.playerAmount,
             creatorWallet: game.creator.walletAddress 
         });
+    }else{
+        return ws.send(JSON.stringify({
+            type: 'error',
+            message: 'Game category should be human, AI or pair'
+        }));
     }
 
      
@@ -1475,11 +1567,46 @@ function handleJoin(ws, data) {
         }));
       }
     
+      // ws.send(JSON.stringify({
+      //   type: 'gameState',
+      //   game: game
+      // }));
       ws.send(JSON.stringify({
         type: 'gameState',
-        game: game
-      }));
-    
+        game: {
+        // players: [ws],
+        // viewers: new Set(),
+        chess: game.chess,
+        status: game.status,
+        cat: game.cat,
+        duration: game.duration,
+        isBetting: game.isBetting,
+        transactionIds: game.isBetting ? [data.transactionId] : [],
+        playerAmount: game.isBetting ? data.playerAmount : null,
+        // wallets: isBetting ? [data.walletAddress] : [],
+        wallets: [data.walletAddress],
+        // creator: {
+        //     // ws: ws,
+        //     side: assignedColor,
+        //     walletAddress: data.walletAddress || null,
+        //     timeLeft: duration
+        // },
+        // opponent:{
+        //     // ws: null,
+        //     side: assignedColor === 'w' ? 'b' : 'w',
+        //     walletAddress: null,
+        //     timeLeft: duration
+        // },
+        // stale: 0,
+        // count: 0,
+        // numberOfGames: config.numberOfGames,
+        // winnersList: [],
+        // forwarded: null,
+        // config: config,
+        // gameId: gameId,
+        // createdAt: Date.now()
+      }
+    }));
       console.log(`Reporting this gameState: ${gameId}`);
   }
 
