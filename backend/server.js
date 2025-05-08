@@ -556,8 +556,12 @@ function handleJoin(ws, data) {
           // game.wallets.push(AIDefaultWallet);
           if (game.opponent.side === 'w') {
             game.wallets.unshift(AIDefaultWallet); // add to beginning
+            g.players.unshift(null);
+            // g.players.unshift(ws);
           } else if (game.opponent.side === 'b') {
             game.wallets.push(AIDefaultWallet); // add to end
+            g.players.push(null);
+            // g.players.push(ws);
           }
           game.status = 'joined'; // Start the game immediately
           console.log(`AI opponent assigned to game ${gameId}`);
@@ -732,6 +736,8 @@ function handleJoin(ws, data) {
             // if (g && g.cat === "pair" && g.opponent.walletAddress === null ) {
                 g.opponent.walletAddress = data.walletAddress;
                 // g.players.push(ws);
+                // g.wallets.push(data.walletAddress); // add to end
+
                 if (g.opponent.side === 'w') {
                   g.wallets.unshift(data.walletAddress); // add to beginning
                   g.players.unshift(ws);
@@ -1715,7 +1721,7 @@ function handleJoin(ws, data) {
     console.log(`Chat in ${gameId}: ${message}`);
   }
 
-  async function handleReconnect(ws, { gameId, walletAddress, signature }) {
+  /* async function handleReconnect(ws, { gameId, walletAddress, signature }) {
     const game = games.get(gameId);
     if (!game) {
       return ws.send(JSON.stringify({
@@ -1754,7 +1760,85 @@ function handleJoin(ws, data) {
     }));
   
     console.log(`Player ${walletAddress} reconnected`);
-  }
+  } */
+
+  
+    async function handleReconnect(ws, { gameId, walletAddress, signature }) {
+      let game = games.get(gameId);
+    
+      if (!game) {
+        try {
+          // Try to fetch from the database
+          const rows = await query(
+            `SELECT * FROM games WHERE game_hash = ? ORDER BY timestamp DESC LIMIT 1`,
+            [gameId]
+          );
+    
+          if (rows.length === 0) {
+            return ws.send(JSON.stringify({
+              type: 'error',
+              message: 'Game not found in database'
+            }));
+          }
+    
+          const latest = rows[0];
+    
+          // Only recover if the game is still active
+          if (latest.game_state === 'active') {
+            const recoveredGame = latest.game;
+    
+            recoveredGame.status = latest.game_state;
+            recoveredGame.duration = latest.duration;
+            recoveredGame.isBetting = latest.bet_status;
+            recoveredGame.playerAmount = latest.player_amount;
+    
+            games.set(gameId, recoveredGame);
+            game = recoveredGame;
+    
+            console.log(`Recovered game ${gameId} from DB into memory`);
+          } else {
+            return ws.send(JSON.stringify({
+              type: 'error',
+              message: 'Game is no longer active'
+            }));
+          }
+        } catch (error) {
+          console.error('Error during game recovery:', error);
+          return ws.send(JSON.stringify({
+            type: 'error',
+            message: 'Internal server error during recovery'
+          }));
+        }
+      }
+    
+      // Proceed with reconnection logic
+      const found = game.wallets.find(addr => addr === walletAddress);
+    
+      if (!found) {
+        return ws.send(JSON.stringify({
+          type: 'error',
+          message: 'Not originally part of this game'
+        }));
+      }
+    
+      // Update the WebSocket reference
+      if (game.wallets[0] === walletAddress) {
+        game.players[0] = ws;
+      } else {
+        game.players[1] = ws;
+      }
+    
+      ws.send(JSON.stringify({
+        type: 'reconnected',
+        fen: game.chess.fen(),
+        turn: game.chess.turn(),
+        status: game.status
+      }));
+    
+      console.log(`Player ${walletAddress} reconnected to game ${gameId}`);
+    }
+
+    
 
   async function handleResign(ws, { gameId, walletAddress }) {
     const game = games.get(gameId);
@@ -2190,7 +2274,7 @@ function handleJoin(ws, data) {
   //   });
   // }
 
-  function broadcastToAll(game, message, to=3, type=false) {
+  /* function broadcastToAll(game, message, to=3, type=false) {
     // 3 = "all", 2 = viewers, 1 = players
     if(to === 3){
       const allParticipants = [...game.players, ...game.viewers];
@@ -2223,9 +2307,27 @@ function handleJoin(ws, data) {
     // if(end){
     //   games.delete(game);
     // }
-  }
+  } */
   
 
+    function broadcastToAll(game, message, to = 3, type = false) {
+      let allParticipants = [];
+    
+      if (to === 3) {
+        allParticipants = [...game.players, ...game.viewers];
+      } else if (to === 2) {
+        allParticipants = [...game.viewers];
+      } else if (to === 1) {
+        allParticipants = [...game.players];
+      }
+    
+      allParticipants.forEach(participant => {
+        if (participant && participant.readyState === WebSocket.OPEN) {
+          participant.send(JSON.stringify(message));
+        }
+      });
+    }
+    
 
   function handlePairRequest(ws, data) {
     // Validate pairing request
@@ -2629,8 +2731,75 @@ function generateNonce() {
       // console.log(`New viewer for game ${game_hash}`);
   }
   
+  async function unifiedGameData(req, res) {
+    const { game_hash } = req.params;
+  
+    // 1. Check in-memory first
+    const game = games.get(game_hash);
+  
+    if (game) {
+      return res.status(200).json({
+        state: true,
+        duration: game.duration,
+        game_state: game.status,
+        bet_status: game.isBetting,
+        amount: game.playerAmount
+      });
+    }
+  
+    try {
+      // 2. If not in memory, query the database
+      const rows = await query(
+        `SELECT * FROM games WHERE game_hash = ? ORDER BY timestamp DESC LIMIT 1`,
+        [game_hash]
+      );
+  
+      if (rows.length === 0) {
+        return res.status(404).json({ error: 'No game data found' });
+      }
+  
+      const latest = rows[0];
+  
+      // 3. Check if the game is active before recovering to memory
+      if (latest.game_state === 'active') {
+        try {
+          // const recoveredGame = JSON.parse(latest.game);
+          const recoveredGame = latest.game;
+  
+          // Add any additional recovery processing here if needed
+          recoveredGame.status = latest.game_state;
+          recoveredGame.duration = latest.duration;
+          recoveredGame.isBetting = latest.bet_status;
+          recoveredGame.playerAmount = latest.player_amount;
+  
+          games.set(game_hash, recoveredGame);
+          return res.status(200).json({
+            state: true,
+            duration: latest.duration,
+            game_state: latest.game_state,
+            bet_status: latest.bet_status,
+            amount: latest.player_amount
+          });
+        } catch (parseError) {
+          console.error('Error parsing recovered game:', parseError);
+          return res.status(500).json({ error: 'Corrupted game data in database' });
+        }
+      } else {
+        return res.status(404).json({ error: 'Game is not active' });
+      }
+  
+    } catch (error) {
+      console.error('Error getting game data:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+  
+  // Use this combined route
+  app.get(MAIN_DIR + '/gameDataUnified/:game_hash', unifiedGameData);
+  
 
-  app.get(MAIN_DIR+'/gameDataMem/:game_hash', gameStateMem); // Get latest state
+  // app.get(MAIN_DIR+'/gameDataMem/:game_hash', gameStateMem); // Get latest state
+  app.get(MAIN_DIR+'/gameDataMem/:game_hash', unifiedGameData); // Get latest state
 
 
 

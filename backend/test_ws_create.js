@@ -42,7 +42,7 @@ ws.on('open', () => {
             type: 'create',
             duration: 120000,
             cat: 'pair',
-            walletAddress: testWallet,
+            walletAddress: wallet1,
             side: 'random'
         },
 
