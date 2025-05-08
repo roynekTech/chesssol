@@ -645,6 +645,7 @@ function handleJoin(ws, data) {
                   creator: game.opponent,
                   opponent: game.opponent,
                   wallets: game.wallets,
+                  players: game.players,
                   transactionIds: isBetting ? [game.transactionIds] : [],
                   playerAmount: isBetting ? game.playerAmount : null,
                   stale: game.stale,
@@ -831,6 +832,7 @@ function handleJoin(ws, data) {
                           creator: game.opponent,
                           opponent: game.opponent,
                           wallets: game.wallets,
+                          players: game.players,
                           transactionIds: isBetting ? [game.transactionIds] : [],
                           playerAmount: isBetting ? game.playerAmount : null,
                           stale: game.stale,
@@ -1481,7 +1483,7 @@ function handleJoin(ws, data) {
             // game.chess.load(fen);
             // const currentFen = game.chess.fen();
 
-            try {
+            /* try {
                 // const moveString = "e2e4";
             
                 // Apply the move directly using the string
@@ -1528,18 +1530,70 @@ function handleJoin(ws, data) {
                     type: 'error',
                     message: 'Unexpected error: ' + error.message
                 }));
+            } */
+
+            try {
+              // Apply the move directly using the string
+              const moveResult = game.chess.move(move);
+          
+              if (!moveResult) {
+                  return ws.send(JSON.stringify({
+                      type: 'error',
+                      message: 'Invalid move - move could not be applied'
+                  }));
+              }
+          
+              // Compare the current FEN with the provided one
+              if (game.chess.fen() !== fen) {
+                  return ws.send(JSON.stringify({
+                      type: 'error',
+                      message: 'Move verification failed - applied fen different from generated fen'
+                  }));
+              }
+          
+              // Determine the active player index
+              let activeend = (ws === game.players[0]) ? 0 : 1;
+          
+              // Check game-ending conditions
+              if (game.chess.isCheckmate()) {
+                  console.log("Checkmate!");
+                  handleCheckmate(game.players[activeend], {
+                      gameId: gameId,
+                      walletAddress: game.wallets[activeend]
+                  });
+              } else if (game.chess.isStalemate()) {
+                  console.log("Stalemate!");
+                  handleStale(game.players[activeend], {
+                      gameId: gameId,
+                      walletAddress: game.wallets[activeend]
+                  });
+              } else if (game.chess.isThreefoldRepetition()) {
+                  console.log("Draw by threefold repetition!");
+                  handleStale(game.players[activeend], {
+                      gameId: gameId,
+                      walletAddress: game.wallets[activeend]
+                  });
+              }
+            } catch (error) {
+                return ws.send(JSON.stringify({
+                    type: 'error',
+                    message: 'Unexpected error: ' + error.message
+                }));
             }
+          
           
             
 
             // update nonce
             let ch_nonce = generateNonce();
             game.nonce = ch_nonce;
+            const currentFen = game.chess.fen();
     
             // 3. Broadcast move
             broadcastToAll(game, {
                 type: 'move',
                 fen: currentFen,
+                // fen: game.chess.fen(),
                 turn: game.chess.turn(),
                 valid: true,
                 lastMove: move,
@@ -1877,9 +1931,16 @@ function handleJoin(ws, data) {
     
       // Update the WebSocket reference
       if (game.wallets[0] === walletAddress) {
-        game.players[0] = ws;
+        if(game.players[0]){
+          game.players[0] = ws;
+        }
+        // game.players[0] = ws;
+        
       } else {
-        game.players[1] = ws;
+        if(game.players[1]){
+          game.players[1] = ws;
+        }
+        // game.players[1] = ws;
       }
     
       ws.send(JSON.stringify({

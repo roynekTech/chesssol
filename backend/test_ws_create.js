@@ -30,21 +30,22 @@ ws.on('open', () => {
         //     walletAddress: testWallet,
         //     side: 'random'
         // },
-        {
-            type: 'create',
-            duration: 120000,
-            cat: 'pair',
-            walletAddress: testWallet,
-            side: 'w'
-        },
+        
+        // {
+        //     type: 'create',
+        //     duration: 120000,
+        //     cat: 'pair',
+        //     walletAddress: testWallet,
+        //     side: 'w'
+        // },
 
-        {
-            type: 'create',
-            duration: 120000,
-            cat: 'pair',
-            walletAddress: wallet1,
-            side: 'random'
-        },
+        // {
+        //     type: 'create',
+        //     duration: 120000,
+        //     cat: 'pair',
+        //     walletAddress: wallet1,
+        //     side: 'random'
+        // },
 
         // {
         //     type: 'create',
@@ -54,13 +55,13 @@ ws.on('open', () => {
         //     side: 'w'
         // },
 
-        // {
-        //     type: 'create',
-        //     duration: 120000,
-        //     cat: 'AI',
-        //     walletAddress: testWallet,
-        //     side: 'b' // the user is b so AI would play first - handled by create
-        // },
+        {
+            type: 'create',
+            duration: 120000,
+            cat: 'AI',
+            walletAddress: testWallet,
+            side: 'b' // the user is b so AI would play first - handled by create
+        },
 
         // {
         //     type: 'create',
