@@ -553,6 +553,12 @@ function handleJoin(ws, data) {
     let paired = false;
     if (cat === "AI") {
           game.opponent.walletAddress = AIDefaultWallet;
+          // game.wallets.push(AIDefaultWallet);
+          if (game.opponent.side === 'w') {
+            game.wallets.unshift(AIDefaultWallet); // add to beginning
+          } else if (game.opponent.side === 'b') {
+            game.wallets.push(AIDefaultWallet); // add to end
+          }
           game.status = 'joined'; // Start the game immediately
           console.log(`AI opponent assigned to game ${gameId}`);
 
@@ -615,17 +621,32 @@ function handleJoin(ws, data) {
           try {
             // const connection = await getDbConnection();
             const gameData = {
-                game_hash: data.gameId,
+                game_hash: gameId,
                 game_state: 'active',
                 // game_state: 'waiting',
                 // player1: assignedColor === 'w' ? data.walletAddress : "",
                 // player2: assignedColor === 'b' ? data.walletAddress : "",
                 player1: game.wallets[0],
+                // player2: AIDefaultWallet,
                 player2: game.wallets[1],
                 bet_status: isBetting,
                 move_history: JSON.stringify([game.chess.fen()]), // Initial FEN
                 // move_history: JSON.stringify(["rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"]),
                 start_date: new Date(),
+                game: JSON.stringify({
+                  creator: game.opponent,
+                  opponent: game.opponent,
+                  wallets: game.wallets,
+                  transactionIds: isBetting ? [game.transactionIds] : [],
+                  playerAmount: isBetting ? game.playerAmount : null,
+                  stale: game.stale,
+                  count: 0,
+                  numberOfGames: game.numberOfGames,
+                  winnersList: game.winner,
+                  forwarded: game.forwarded,
+                  config: game.config,
+
+                }),
                 duration: game.duration,
                 // current_fen: JSON.stringify(game.chess.fen()) // same thing like the move_history above...
                 current_fen: game.chess.fen()
@@ -647,7 +668,7 @@ function handleJoin(ws, data) {
             );
             
             // connection.release();
-            console.log(`Game ${data.gameId} saved to database`);
+            console.log(`Game ${gameId} saved to database`);
           } catch (dbError) {
               console.error('Database save failed:', dbError);
               // Continue even if DB fails - game exists in memory
@@ -667,7 +688,7 @@ function handleJoin(ws, data) {
               if (fs.existsSync(relativePath)) {
                   stockfishPath = relativePath;
               } else {
-                  stockfishPath = `/home/azureuser/chesssol-backend/backend/chess-engine/Stockfish-sf_${randomLevel}/src/stockfish`;
+                  stockfishPath = `/home/azureuser/chesssol/backend/chess-engine/Stockfish-sf_${randomLevel}/src/stockfish`;
               }
 
               const currentFen = game.chess.fen();
@@ -703,12 +724,22 @@ function handleJoin(ws, data) {
 
     else if (cat === "pair") {
         // Look for an available game with no opponent
-        
+        // console.log(`Searching for available pair game for ${data.walletAddress}`);
+        console.log("Available games:", Array.from(availablePairGames));
         for (let id of availablePairGames) {
             let g = games.get(id);
-            if (g.cat === "pair" && g.opponent.walletAddress === null && g.creator.walletAddress !== data.walletAddress) {
+            if (g && g.cat === "pair" && g.opponent.walletAddress === null && g.creator.walletAddress !== data.walletAddress ) {
+            // if (g && g.cat === "pair" && g.opponent.walletAddress === null ) {
                 g.opponent.walletAddress = data.walletAddress;
-                g.players.push(ws);
+                // g.players.push(ws);
+                if (g.opponent.side === 'w') {
+                  g.wallets.unshift(data.walletAddress); // add to beginning
+                  g.players.unshift(ws);
+                } else if (g.opponent.side === 'b') {
+                  g.wallets.push(data.walletAddress); // add to end
+                  g.players.push(ws);
+                }
+
                 g.status = 'joined';
                 availablePairGames.delete(id);
                 // games.set(id, g); // where id is the existing gameId from availablePairGames
@@ -774,7 +805,7 @@ function handleJoin(ws, data) {
                     // const connection = await getDbConnection();
                     
                     const gameData = {
-                        game_hash: data.gameId,
+                        game_hash: id,
                         game_state: 'active',
                         // game_state: 'waiting',
                         // player1: assignedColor === 'w' ? data.walletAddress : "",
@@ -786,6 +817,20 @@ function handleJoin(ws, data) {
                         // move_history: JSON.stringify(["rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"]),
                         start_date: new Date(),
                         duration: g.duration,
+                        game: JSON.stringify({
+                          creator: game.opponent,
+                          opponent: game.opponent,
+                          wallets: game.wallets,
+                          transactionIds: isBetting ? [game.transactionIds] : [],
+                          playerAmount: isBetting ? game.playerAmount : null,
+                          stale: game.stale,
+                          count: 0,
+                          numberOfGames: game.numberOfGames,
+                          winnersList: game.winner,
+                          forwarded: game.forwarded,
+                          config: game.config,
+        
+                        }),
                         // current_fen: JSON.stringify(game.chess.fen()) // same thing like the move_history above...
                         current_fen: g.chess.fen()
                     };
@@ -806,7 +851,7 @@ function handleJoin(ws, data) {
                     );
                     
                     // connection.release();
-                    console.log(`Game ${data.gameId} saved to database`);
+                    console.log(`Game ${id} saved to database`);
                 } catch (dbError) {
                     console.error('Database save failed:', dbError);
                     // Continue even if DB fails - game exists in memory
@@ -833,13 +878,13 @@ function handleJoin(ws, data) {
               playerAmount: isBetting ? data.playerAmount : null,
               duration: duration,
               nonce: generateNonce()
-          }));
-      
-          console.log(`Game Pair ${gameId} created`, { 
-              isBetting,
-              playerAmount: game.playerAmount,
-              creatorWallet: game.creator.walletAddress 
-          });
+            }));
+        
+            console.log(`Game Pair ${gameId} created`, { 
+                isBetting,
+                playerAmount: game.playerAmount,
+                creatorWallet: game.creator.walletAddress 
+            });
         }
     }
 
@@ -1484,7 +1529,7 @@ function handleJoin(ws, data) {
             console.log(`Move processed for ${gameId} by ${walletAddress}`);
 
 
-                    // === AUTO-MOVE FOR AI IF IT'S THEIR TURN ===
+            // === AUTO-MOVE FOR AI IF IT'S THEIR TURN ===
             if (game.opponent.walletAddress === AIDefaultWallet && game.chess.turn() === game.opponent.side) {
                 const aiFen = game.chess.fen();
                 const aiSide = game.opponent.side;
@@ -1495,9 +1540,9 @@ function handleJoin(ws, data) {
 
                 const stockfishPath = fs.existsSync(path.join(__dirname, `../chess-engine/Stockfish-sf_${selectedVersion}/src/stockfish`))
                     ? path.join(__dirname, `../chess-engine/Stockfish-sf_${selectedVersion}/src/stockfish`)
-                    : `/home/azureuser/chesssol-backend/backend/chess-engine/Stockfish-sf_${selectedVersion}/src/stockfish`;
+                    : `/home/azureuser/chesssol/backend/chess-engine/Stockfish-sf_${selectedVersion}/src/stockfish`;
 
-                getBestMove(aiFen, async (err, aiMove) => {
+                gameHandlers.getBestMove(aiFen, async (err, aiMove) => {
                     if (err) return console.error('AI move error:', err.message);
 
                     const newChess = new Chess();
