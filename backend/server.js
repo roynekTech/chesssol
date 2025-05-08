@@ -553,16 +553,19 @@ function handleJoin(ws, data) {
     let paired = false;
     if (cat === "AI") {
           game.opponent.walletAddress = AIDefaultWallet;
-          // game.wallets.push(AIDefaultWallet);
-          if (game.opponent.side === 'w') {
-            game.wallets.unshift(AIDefaultWallet); // add to beginning
-            g.players.unshift(null);
-            // g.players.unshift(ws);
-          } else if (game.opponent.side === 'b') {
-            game.wallets.push(AIDefaultWallet); // add to end
-            g.players.push(null);
-            // g.players.push(ws);
-          }
+          game.wallets.push(AIDefaultWallet);
+          game.players.push(null);
+
+          // if (game.opponent.side === 'w') {
+          //   game.wallets.unshift(AIDefaultWallet); // add to beginning
+          //   game.players.unshift(null);
+          //   // g.players.unshift(ws);
+          // } else if (game.opponent.side === 'b') {
+          //   game.wallets.push(AIDefaultWallet); // add to end
+          //   game.players.push(null);
+          //   // g.players.push(ws);
+          // }
+
           game.status = 'joined'; // Start the game immediately
           console.log(`AI opponent assigned to game ${gameId}`);
 
@@ -576,6 +579,7 @@ function handleJoin(ws, data) {
               gameId,
               fen: chess.fen(),
               color: assignedColor,
+              // color: game.creator.side,
               isBetting: isBetting,
               playerAmount: isBetting ? data.playerAmount : null,
               duration: duration,
@@ -735,16 +739,16 @@ function handleJoin(ws, data) {
             if (g && g.cat === "pair" && g.opponent.walletAddress === null && g.creator.walletAddress !== data.walletAddress ) {
             // if (g && g.cat === "pair" && g.opponent.walletAddress === null ) {
                 g.opponent.walletAddress = data.walletAddress;
-                // g.players.push(ws);
-                // g.wallets.push(data.walletAddress); // add to end
+                g.players.push(ws);
+                g.wallets.push(data.walletAddress); // add to end
 
-                if (g.opponent.side === 'w') {
-                  g.wallets.unshift(data.walletAddress); // add to beginning
-                  g.players.unshift(ws);
-                } else if (g.opponent.side === 'b') {
-                  g.wallets.push(data.walletAddress); // add to end
-                  g.players.push(ws);
-                }
+                // if (g.opponent.side === 'w') {
+                //   g.wallets.unshift(data.walletAddress); // add to beginning
+                //   g.players.unshift(ws);
+                // } else if (g.opponent.side === 'b') {
+                //   g.wallets.push(data.walletAddress); // add to end
+                //   g.players.push(ws);
+                // }
 
                 g.status = 'joined';
                 availablePairGames.delete(id);
@@ -1474,8 +1478,58 @@ function handleJoin(ws, data) {
             }
 
             // 2. Update game state
-            game.chess.load(fen);
-            const currentFen = game.chess.fen();
+            // game.chess.load(fen);
+            // const currentFen = game.chess.fen();
+
+            try {
+                // const moveString = "e2e4";
+            
+                // Apply the move directly using the string
+                const moveResult = game.chess.move(move);
+            
+                if (!moveResult) {
+                    return ws.send(JSON.stringify({
+                        type: 'error',
+                        message: 'Invalid move - move could not be applied'
+                    }));
+                }
+            
+                // Compare the current FEN with the provided one
+                if (game.chess.fen() !== fen) {
+                    return ws.send(JSON.stringify({
+                        type: 'error',
+                        message: 'Move verification failed - applied fen different from generated fen'
+                    }));
+                }
+            
+                // Check game-ending conditions
+                let activeend = (ws == game.players[0]) ? 0 : 1;
+                if (game.chess.in_checkmate()) {
+                    console.log("Checkmate!");
+                    handleCheckmate(game.players[activeend], {
+                      gameId: gameId,
+                      walletAddress: game.wallets[activeend]
+                    });
+                } else if (game.chess.in_stalemate()) {
+                    console.log("Stalemate!");
+                    handleStale(game.players[activeend], {
+                      gameId: gameId,
+                      walletAddress: game.wallets[activeend]
+                    });
+                } else if (game.chess.in_threefold_repetition()) {
+                    console.log("Draw by threefold repetition!");
+                    handleStale(game.players[activeend], {
+                      gameId: gameId,
+                      walletAddress: game.wallets[activeend]
+                    });
+                }
+            } catch (error) {
+                return ws.send(JSON.stringify({
+                    type: 'error',
+                    message: 'Unexpected error: ' + error.message
+                }));
+            }
+          
             
 
             // update nonce
