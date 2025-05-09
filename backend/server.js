@@ -1551,38 +1551,7 @@ function handleJoin(ws, data) {
                   }));
               }
           
-              // Determine the active player index
-              let activeend = (ws === game.players[0]) ? 0 : 1;
-          
-              // Check game-ending conditions
-              if (game.chess.isCheckmate()) {
-                  console.log("Checkmate!");
-                  handleCheckmate(game.players[activeend], {
-                      gameId: gameId,
-                      walletAddress: game.wallets[activeend]
-                  });
-              } else if (game.chess.isStalemate()) {
-                  console.log("Stalemate!");
-                  handleStale(game.players[activeend], {
-                      gameId: gameId,
-                      walletAddress: game.wallets[activeend]
-                  });
-              } else if (game.chess.isThreefoldRepetition()) {
-                  console.log("Draw by threefold repetition!");
-                  handleStale(game.players[activeend], {
-                      gameId: gameId,
-                      walletAddress: game.wallets[activeend]
-                  });
-              }
-            } catch (error) {
-                return ws.send(JSON.stringify({
-                    type: 'error',
-                    message: 'Unexpected error: ' + error.message
-                }));
-            }
-          
-          
-            
+              
 
             // update nonce
             let ch_nonce = generateNonce();
@@ -1679,6 +1648,38 @@ function handleJoin(ws, data) {
                     });
                 }, stockfishPath);
             }
+
+
+            // Determine the active player index
+            let activeend = (ws === game.players[0]) ? 0 : 1;
+          
+            // Check game-ending conditions
+            if (game.chess.isCheckmate()) {
+                console.log("Checkmate!");
+                handleCheckmate(game.players[activeend], {
+                    gameId: gameId,
+                    walletAddress: game.wallets[activeend]
+                });
+            } else if (game.chess.isStalemate()) {
+                console.log("Stalemate!");
+                handleStale(game.players[activeend], {
+                    gameId: gameId,
+                    walletAddress: game.wallets[activeend]
+                });
+            } else if (game.chess.isThreefoldRepetition()) {
+                console.log("Draw by threefold repetition!");
+                handleStale(game.players[activeend], {
+                    gameId: gameId,
+                    walletAddress: game.wallets[activeend]
+                });
+            }
+            
+          } catch (error) {
+              return ws.send(JSON.stringify({
+                  type: 'error',
+                  message: 'Unexpected error: ' + error.message
+              }));
+          }
 
         } catch (e) {
             console.error('Move error:', e);
