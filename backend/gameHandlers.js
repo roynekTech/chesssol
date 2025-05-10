@@ -330,6 +330,7 @@ async function getGameData(req, res) {
             player1: latest.player1,
             player2: latest.player2,
             bet_status: latest.bet_status,
+            paymentAmount: latest.player_amount,
         });
 
     } catch (error) {
@@ -762,7 +763,7 @@ async function poolStats(req, res) {
 // const { query } = require('../db'); // adjust the path as needed
 
 //create-tournament
-async function create_tournament(req, res) {
+/* async function create_tournament(req, res) {
   try {
     const body = req.body;
 
@@ -780,7 +781,7 @@ async function create_tournament(req, res) {
     const name = body.name || 'Demo Tournament';
     const description = body.description || 'A demo tournament for testing.';
     const link = body.link || 'https://example.com';
-    const socals = body.socals || 'https://twitter.com/demo';
+    const socials = body.socials || 'https://twitter.com/demo';
     const totalPlayers = body.totalPlayers || 16;
     // const wallets = JSON.stringify(body.wallets || {}); // {wallet1: "{}"}
     const wallets = JSON.stringify({});
@@ -793,17 +794,21 @@ async function create_tournament(req, res) {
     // configuration.entryFee = body.entryFee || body.paymentAmount;
 
     const nonce = Math.floor(Math.random() * 100000);
-    const registeredNum = body.registeredNum || 2;
-    const changeValue = body.changeValue || 0;
-    const starterScore = typeof body.starterScore !== 'undefined' ? body.starterScore : 100;
-    const scoring = JSON.stringify(body.scoring || { win: 3, draw: 1, loss: 0 });
+    const registeredNum = body.registeredNum || 0;
+    const changeValue = body.changeValue || 7;
+    const starterScore = typeof body.starterScore !== 'undefined' ? body.starterScore : 0;
+    // const scoring = JSON.stringify(body.scoring || { win: 3, draw: 1, loss: 0 });
+    const scoring = JSON.stringify({});
     const image = body.image || 'https://example.com/image.png';
-    const type = body.type || 'tournament';
+    // const type = body.type || 'tournament';
+    const type = body.type || 'league';
     const level = body.level || 1;
     const unique_hash = body.unique_hash || uuidv4();
-    const winners = JSON.stringify(body.winners || {});
+    // const winners = JSON.stringify(body.winners || {});
+    const winners = JSON.stringify({});
     const payoutStatus = body.payoutStatus || 'unpaid';
-    const contact = JSON.stringify(body.contact || { email: 'contact@example.com' });
+    // const contact = JSON.stringify({phoneNos: body.contact} || { phoneNos: '+10000542' });
+    const contact = JSON.stringify({phoneNos: body.contact} || {});
     // const emails = JSON.stringify(body.emails || ['player1@example.com', 'player2@example.com']);
     const emails = JSON.stringify({});
     const addon = body.addon || 'none';
@@ -811,14 +816,14 @@ async function create_tournament(req, res) {
 
     const sql = `
       INSERT INTO tournament (
-        name, description, link, socals, totalPlayers, wallets, transactions, status, isBet, configuration, nonce,
+        name, description, link, socials, totalPlayers, wallets, transactions, status, isBet, configuration, nonce,
         registeredNum, changeValue, starterScore, scoring, image, type, level, unique_hash,
         winners, payoutStatus, contact, emails, addon, date
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     const params = [
-      name, description, link, socals, totalPlayers, wallets, transactions, status, isBet, configuration, nonce,
+      name, description, link, socials, totalPlayers, wallets, transactions, status, isBet, configuration, nonce,
       registeredNum, changeValue, starterScore, scoring, image, type, level, unique_hash,
       winners, payoutStatus, contact, emails, addon, date
     ];
@@ -842,10 +847,108 @@ async function create_tournament(req, res) {
       insertHash: null
     });
   }
-}
+} */
 
+  async function create_tournament(req, res) {
+    try {
+      const body = req.body;
+  
+      if (!body.walletAddress) {
+        return res.status(400).json({
+          status: 'fail',
+          error: true,
+          msg: 'unique_hash and walletAddress are required',
+          insertId: null,
+          insertHash: null
+        });
+      }
+  
+      const name = body.name || 'Demo Tournament';
+      const description = body.description || 'A demo tournament for testing.';
+      const link = body.link || 'https://example.com';
+      const socials = JSON.stringify(body.socials || { twitter: "https://twitter.com/demo" });
+      const totalPlayers = body.totalPlayers || 16;
+      const wallets = JSON.stringify({});
+      const transactions = JSON.stringify({});
+      const status = "upcoming";
+      const isBet = typeof body.isBet !== 'undefined' ? body.isBet : 0;
+      
+      // const configuration = JSON.stringify(body.configuration || { mode: "fast", max_rounds: 5 });
+      let configuration = body.configuration || {
+        mode: "rapid",
+        max_rounds: 5,
+        moveTimeout: 30000,
+        randomStart: true, 
+        numberOfGames: 1, 
+        resignationTime: 14000,
+      };
+      configuration.creator = body.walletAddress;
+      configuration.paymentAmount = body.paymentAmount || 0;
+      configuration = JSON.stringify(configuration);
+
+      // configuration.entryFee = body.entryFee || body.paymentAmount;
+      
+      const nonce = Math.floor(Math.random() * 100000);
+      const registeredNum = body.registeredNum || 0;
+      const changeValue = body.changeValue || 7;
+      const starterScore = typeof body.starterScore !== 'undefined' ? body.starterScore : 0;
+      const scoring = JSON.stringify({});
+      const image = body.image || 'https://example.com/image.png';
+      const type = body.type || 'league';
+  
+      // New columns
+      const publicVal = typeof body.public !== 'undefined' ? body.public : 1;
+      const game_hashes = JSON.stringify({});
+      const fixtures = JSON.stringify({});
+  
+      const level = body.level || 1;
+      const unique_hash = body.unique_hash || uuidv4();
+      const winners = JSON.stringify({});
+      const payoutStatus = body.payoutStatus || 'unpaid';
+      const contact = JSON.stringify({phoneNos: body.contact} || {});
+      const emails = JSON.stringify({});
+      const addon = body.addon || 'none';
+      const date = body.date ? new Date(body.date) : new Date();
+  
+      const sql = `
+        INSERT INTO tournament (
+          name, description, link, socials, totalPlayers, wallets, transactions, status, isBet, configuration, nonce,
+          registeredNum, changeValue, starterScore, scoring, image, type, public, game_hashes, fixtures, level, unique_hash,
+          winners, payoutStatus, contact, emails, addon, date
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `;
+
+      const params = [
+        name, description, link, socials, totalPlayers, wallets, transactions, status, isBet, configuration, nonce,
+        registeredNum, changeValue, starterScore, scoring, image, type, publicVal, game_hashes, fixtures, level, unique_hash,
+        winners, payoutStatus, contact, emails, addon, date
+      ];
+
+      const result = await query(sql, params);
+  
+      res.status(201).json({
+        status: 'success',
+        error: false,
+        msg: 'Tournament created successfully',
+        insertId: result.insertId,
+        insertHash: unique_hash
+      });
+  
+    } catch (error) {
+      console.error('Create tournament error:', error);
+      res.status(500).json({
+        status: 'fail',
+        error: true,
+        msg: 'Failed to create tournament',
+        insertId: null,
+        insertHash: null
+      });
+    }
+  }
+
+  
 //'/join-tournament'
-async function join_tournament(req, res) {
+/* async function join_tournament(req, res) {
   try {
     const {
       unique_hash,
@@ -995,10 +1098,141 @@ async function join_tournament(req, res) {
       insertHash: null
     });
   }
-}
+} */
 
+  async function join_tournament(req, res) {
+    try {
+      const {
+        unique_hash,
+        walletAddress,
+        email,
+        contact,
+        nickname,
+        transactionSignature,
+        paymentAmount
+      } = req.body;
+  
+      if (!unique_hash || !walletAddress) {
+        return res.status(400).json({
+          status: 'fail',
+          error: true,
+          msg: 'unique_hash and walletAddress are required',
+          insertId: null,
+          insertHash: null
+        });
+      }
+  
+      // Check if wallet already exists
+      const checkQuery = `
+        SELECT 
+          configuration->>"$.entryFee" AS entryFee,
+          isBet,
+          JSON_CONTAINS_PATH(wallets, 'one', ?) AS walletExists
+        FROM tournament 
+        WHERE unique_hash = ?
+      `;
+      const walletJsonPath = `$.${walletAddress}`;
+      const [tournament] = await query(checkQuery, [walletJsonPath, unique_hash]);
+  
+      if (!tournament) {
+        return res.status(404).json({
+          status: 'fail',
+          error: true,
+          msg: 'Tournament not found',
+          insertId: null,
+          insertHash: unique_hash
+        });
+      }
+  
+      if (tournament.walletExists) {
+        return res.status(409).json({
+          status: 'fail',
+          error: true,
+          msg: 'Wallet already registered in this tournament',
+          insertId: null,
+          insertHash: unique_hash
+        });
+      }
+  
+      // Betting tournament logic
+      if (tournament.isBet) {
+        const requiredAmount = Number(tournament.entryFee);
+        if (!transactionSignature || typeof paymentAmount === 'undefined') {
+          return res.status(400).json({
+            status: 'fail',
+            error: true,
+            msg: 'Betting tournament requires transactionSignature and paymentAmount.',
+            insertId: null,
+            insertHash: unique_hash
+          });
+        }
+  
+        if (requiredAmount && Number(paymentAmount) !== requiredAmount) {
+          return res.status(400).json({
+            status: 'fail',
+            error: true,
+            msg: `Invalid payment amount. Required: ${requiredAmount}`,
+            insertId: null,
+            insertHash: unique_hash
+          });
+        }
+      }
+  
+      // Prepare JSON update paths and values
+      const emailPath = `$.${walletAddress}`;
+      const contactPath = `$.${walletAddress}`;
+      const walletInfo = {};
+      if (email) walletInfo.email = email;
+      if (contact) walletInfo.contact = contact;
+      if (nickname) walletInfo.nickname = nickname;
+  
+      // Construct atomic update
+      const updateSQL = `
+        UPDATE tournament
+        SET 
+          wallets = JSON_SET(wallets, ?, CAST(? AS JSON)),
+          ${email ? 'emails = JSON_SET(emails, ?, ?),' : ''}
+          ${contact ? 'contact = JSON_SET(contact, ?, ?),' : ''}
+          ${transactionSignature ? 'transactions = JSON_SET(transactions, ?, ?),' : ''}
+          registeredNum = registeredNum + 1
+        WHERE unique_hash = ?
+      `;
+  
+      const updateParams = [
+        `$.${walletAddress}`,
+        JSON.stringify(walletInfo),
+      ];
+  
+      if (email) updateParams.push(emailPath, email);
+      if (contact) updateParams.push(contactPath, contact);
+      if (transactionSignature) updateParams.push(`$.${walletAddress}`, transactionSignature);
+  
+      updateParams.push(unique_hash);
+  
+      await query(updateSQL, updateParams);
+  
+      return res.status(200).json({
+        status: 'success',
+        error: false,
+        msg: 'Successfully joined tournament',
+        insertId: null,
+        insertHash: unique_hash
+      });
+  
+    } catch (error) {
+      console.error('Join tournament error:', error);
+      return res.status(500).json({
+        status: 'fail',
+        error: true,
+        msg: 'Internal server error',
+        insertId: null,
+        insertHash: null
+      });
+    }
+  }
+  
 //update-score
-async function update_score(req, res) {
+/* async function update_score(req, res) {
   try {
     const { unique_hash, walletAddress, creatorWalletAddress, changeValue } = req.body;
 
@@ -1022,10 +1256,22 @@ async function update_score(req, res) {
         insertHash: unique_hash
       });
     }
+    
 
     const tournament = rows[0];
     // const scoring = JSON.parse(tournament.scoring || '{}');
-    const scoring = tournament.scoring || '{}';
+
+    if (tournament.configuration.creator !== creatorWalletAddress) {
+      return res.status(400).json({
+        status: 'fail',
+        error: true,
+        msg: 'Creator wallet mismatch. Only the Tournament creator can update game score',
+        insertId: null,
+        insertHash: null
+      });
+    }
+
+    const scoring = tournament.scoring || {};
     const starterScore = tournament.starterScore || 0;
 
     const currentScore = scoring[walletAddress] || starterScore;
@@ -1056,8 +1302,153 @@ async function update_score(req, res) {
       insertHash: null
     });
   }
-}
+} */
 
+  async function update_score(req, res) {
+    try {
+      const { unique_hash, walletAddress, creatorWalletAddress, changeValue } = req.body;
+  
+      if (!unique_hash || !walletAddress || typeof changeValue === 'undefined') {
+        return res.status(400).json({
+          status: 'fail',
+          error: true,
+          msg: 'unique_hash, walletAddress, and changeValue are required',
+          insertId: null,
+          insertHash: null
+        });
+      }
+  
+      // Check that tournament exists and get creator
+      const [tournament] = await query('SELECT configuration->>"$.creator" AS creator FROM tournament WHERE unique_hash = ?', [unique_hash]);
+      if (!tournament) {
+        return res.status(404).json({
+          status: 'fail',
+          error: true,
+          msg: 'Tournament not found',
+          insertId: null,
+          insertHash: unique_hash
+        });
+      }
+  
+      if (tournament.creator !== creatorWalletAddress) {
+        return res.status(403).json({
+          status: 'fail',
+          error: true,
+          msg: 'Creator wallet mismatch. Only the Tournament creator can update game score',
+          insertId: null,
+          insertHash: null
+        });
+      }
+  
+      // Perform atomic score update in MySQL
+      const walletPath = `$.${walletAddress}`;
+  
+      await query(`
+        UPDATE tournament 
+        SET scoring = JSON_SET(
+          scoring, 
+          ?, 
+          COALESCE(JSON_UNQUOTE(JSON_EXTRACT(scoring, ?)), ?) + ?
+        ) 
+        WHERE unique_hash = ?
+      `, [
+        walletPath,
+        walletPath,
+        0, // fallback if current score doesn't exist
+        Number(changeValue),
+        unique_hash
+      ]);
+  
+      return res.status(200).json({
+        status: 'success',
+        error: false,
+        msg: `Score updated for ${walletAddress}`,
+        insertId: null,
+        insertHash: unique_hash
+      });
+  
+    } catch (error) {
+      console.error('Update score error:', error);
+      return res.status(500).json({
+        status: 'fail',
+        error: true,
+        msg: 'Internal server error',
+        insertId: null,
+        insertHash: null
+      });
+    }
+  }
+
+
+  async function update_tournament(req, res) {
+    try {
+      const body = req.body;
+  
+      if (!body.walletAddress || !body.unique_hash) {
+        return res.status(400).json({
+          status: 'fail',
+          error: true,
+          msg: 'walletAddress and unique_hash are required to update the tournament.'
+        });
+      }
+  
+      const updatableFields = ['level', 'name', 'description', 'totalPlayers', 'status', 'winners'];
+      const updates = [];
+      const values = [];
+  
+      for (const field of updatableFields) {
+        if (body[field] !== undefined) {
+          updates.push(`${field} = ?`);
+          values.push(
+            field === 'winners' ? JSON.stringify(body[field]) : body[field]
+          );
+        }
+      }
+  
+      if (updates.length === 0) {
+        return res.status(400).json({
+          status: 'fail',
+          error: true,
+          msg: 'No valid fields provided to update.'
+        });
+      }
+  
+      values.push(body.walletAddress, body.unique_hash);
+  
+      const sql = `
+        UPDATE tournament
+        SET ${updates.join(', ')}
+        WHERE configuration->>'$.creator' = ? AND unique_hash = ?
+      `;
+  
+      const result = await query(sql, values);
+  
+      if (result.affectedRows === 0) {
+        return res.status(404).json({
+          status: 'fail',
+          error: true,
+          msg: 'Tournament not found or not owned by wallet address.'
+        });
+      }
+  
+      res.status(200).json({
+        status: 'success',
+        error: false,
+        msg: 'Tournament updated successfully',
+        updatedFields: updates.map(u => u.split('=')[0].trim())
+      });
+  
+    } catch (error) {
+      console.error('Update tournament error:', error);
+      res.status(500).json({
+        status: 'fail',
+        error: true,
+        msg: 'Failed to update tournament'
+      });
+    }
+  }
+  
+  
 
 //tournament
 async function tournament (req, res) {
@@ -1127,6 +1518,143 @@ async function tournaments (req, res) {
     }
 }
 
+// const { query } = require('./db'); // Update path if needed
+
+async function generate_fixtures(req, res) {
+  try {
+    const { walletAddress, unique_hash } = req.body;
+    console.log('Request body:', req.body);
+    console.log('Wallet Address:', walletAddress);
+    console.log('Unique Hash:', unique_hash);
+
+
+    if (!walletAddress || !unique_hash) {
+      return res.status(400).json({
+        status: 'fail',
+        error: true,
+        msg: 'walletAddress and unique_hash are required.'
+      });
+    }
+
+    // Get the tournament
+    /* const [rows] = await query(`SELECT * FROM tournament WHERE unique_hash = ?`, [unique_hash]);
+
+    if (rows.length === 0) {
+      return res.status(404).json({
+        status: 'fail',
+        error: true,
+        msg: 'Tournament not found.'
+      });
+    }
+
+    const tournament = rows[0]; */
+
+    // const [rows] = await query(`SELECT * FROM tournament WHERE unique_hash = ?`, [unique_hash]);
+    const rows = await query(`SELECT * FROM tournament WHERE unique_hash = ?`, [unique_hash]);
+    // const [rows] = await query(`SELECT 
+    //       tournmt_id, name, type, configuration, level, unique_hash, date, image, description, status 
+    //     FROM tournament WHERE unique_hash = ?`, [unique_hash]);
+
+
+    console.log('Rows:', rows);
+    if (!rows || rows.length === 0) {
+      console.error(`No tournament found with unique_hash: ${unique_hash}`);
+      return res.status(404).json({
+        status: 'fail',
+        error: true,
+        msg: 'Tournament not found.'
+      });
+    }
+
+    const tournament = rows[0];
+
+    console.log('Tournament:', tournament);
+
+    // Parse relevant fields
+    // const config = typeof tournament.configuration === 'string' 
+    // ? JSON.parse(tournament.configuration) 
+    // : tournament.configuration;
+    // const config = tournament.configuration || '{}';
+    // const wallets = JSON.parse(tournament.wallets || '{}');
+    // const existingFixtures = JSON.parse(tournament.fixtures || '{}');
+
+    const config = tournament.configuration || '{}';
+    const wallets = tournament.wallets || '{}';
+    const existingFixtures = tournament.fixtures || '{}';
+
+    // Ensure requester is creator
+    if (config.creator !== walletAddress) {
+      return res.status(403).json({
+        status: 'fail',
+        error: true,
+        msg: 'You are not the creator of this tournament.'
+      });
+    }
+
+    // Prevent regenerating fixtures
+    if (Object.keys(existingFixtures).length > 0) {
+      return res.status(400).json({
+        status: 'fail',
+        error: true,
+        msg: 'Fixtures already generated.'
+      });
+    }
+
+    const walletList = Object.keys(wallets);
+    let newFixtures = {};
+
+    if (tournament.type === 'league') {
+      // Each wallet plays every other wallet
+      walletList.forEach(wallet => {
+        newFixtures[wallet] = walletList.filter(w => w !== wallet);
+      });
+    } else if (tournament.type === 'cup') {
+      // Knockout structure
+      const stage1 = {};
+      const shuffled = [...walletList].sort(() => 0.5 - Math.random());
+
+      for (let i = 0; i < shuffled.length; i += 2) {
+        const player1 = shuffled[i];
+        const player2 = shuffled[i + 1] || null; // handle odd numbers
+
+        stage1[`game${Math.floor(i / 2) + 1}-1`] = {
+          player1,
+          player2
+        };
+      }
+
+      newFixtures = { stage1 };
+    } else {
+      return res.status(400).json({
+        status: 'fail',
+        error: true,
+        msg: 'Unsupported tournament type.'
+      });
+    }
+
+    // Save fixtures to DB
+    await query(`UPDATE tournament SET fixtures = ? WHERE unique_hash = ?`, [
+      JSON.stringify(newFixtures),
+      unique_hash
+    ]);
+
+    return res.status(200).json({
+      status: 'success',
+      error: false,
+      msg: 'Fixtures generated successfully.',
+      fixtures: newFixtures
+    });
+
+  } catch (error) {
+    console.error('Generate fixtures error:', error);
+    return res.status(500).json({
+      status: 'fail',
+      error: true,
+      msg: 'Internal server error.'
+    });
+  }
+}
+
 
 
 module.exports = {
@@ -1147,5 +1675,7 @@ module.exports = {
   join_tournament,
   update_score,
   tournament,
-  tournaments
+  tournaments,
+  update_tournament,
+  generate_fixtures
 };

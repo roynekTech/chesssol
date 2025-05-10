@@ -123,3 +123,25 @@ chess joke of the day
 
 Hint: You can earn from playing chess, tournaments and competitions. - chesssol .com
 
+
+ALTER TABLE `tournament` CHANGE `socals` `socials` VARCHAR(366) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL;
+ALTER TABLE `tournament` CHANGE `type` `type` ENUM('cup','league') CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL;
+ALTER TABLE `tournament` CHANGE `description` `description` VARCHAR(4500) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL;
+
+ALTER TABLE tournament
+  ADD COLUMN public TINYINT DEFAULT 1 AFTER type,
+  ADD COLUMN game_hashes JSON AFTER public,
+  ADD COLUMN fixtures JSON AFTER game_hashes;
+# ALTER TABLE `tournament`
+#   DROP `game_hashes`,
+#   DROP `pairing`;
+
+-- Clear all records in the table
+DELETE FROM tournament;
+
+-- Modify the 'socials' column to JSON type
+ALTER TABLE tournament
+MODIFY COLUMN socials JSON;
+
+ALTER TABLE tournament AUTO_INCREMENT = 1;
+

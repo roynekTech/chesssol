@@ -305,6 +305,16 @@ curl -X POST http://localhost:3000/chesssol/backend/join-tournament \
   "transactionSignature": "abc-signature-123", // for bet
   "paymentAmount": 200 // for bet
 }'
+
+curl -X POST http://localhost:3000/chesssol/backend/join-tournament -H "Content-Type: application/json" -d '{
+  "unique_hash": "402c3137-bec4-40b3-9b68-3a937faeeebf",
+  "walletAddress": "wallet32",
+  "email": "bettor@example.com",
+  "contact": "08098765432"
+}'
+
+{"status":"success","error":false,"msg":"Successfully joined tournament","insertId":null,"insertHash":"402c3137-bec4-40b3-9b68-3a937faeeebf"}
+
 ```
 
 
@@ -344,10 +354,52 @@ curl http://localhost:3000/chesssol/backend/tournament/xyz789unique
 ```
 
 ```bash
-{"status":true,"error":null,"msg":"Tournament retrieved successfully","tournament":{"tournmt_id":1,"name":"My First Cup","description":"A high-stakes chess event.","link":"https://chess-tournament.com","socals":"https://twitter.com/demo","totalPlayers":16,"wallets":{},..."addon":"none","date":"2025-05-04T16:22:52.000Z","timestamp":"2025-05-04T16:22:52.000Z"}}
+{"status":true,"error":null,"msg":"Tournament retrieved successfully","tournament":{"tournmt_id":1,"name":"My First Cup","description":"A high-stakes chess event.","link":"https://chess-tournament.com","socials":"https://twitter.com/demo","totalPlayers":16,"wallets":{},..."addon":"none","date":"2025-05-04T16:22:52.000Z","timestamp":"2025-05-04T16:22:52.000Z"}}
 ```
 
+#### 12. update tournament
+```bash
 
+curl -X POST http://localhost:3000/chesssol/backend/update-tournament \
+  -H "Content-Type: application/json" \
+  -d '{
+    "walletAddress": "0x123...",
+    "unique_hash": "3c4e1fa3-4f45-41d0-a380-b71d17320750",
+    "level": 4,
+    "status": "active",
+    "winners": {
+      "1st": "0xabc...",
+      "2nd": "0xdef..."
+    }
+  }'
+
+// or
+
+curl -X POST http://localhost:3000/chesssol/backend/update-tournament \
+  -H "Content-Type: application/json" \
+  -d '{
+    "walletAddress": "0x123...",
+    "unique_hash": "3c4e1fa3-4f45-41d0-a380-b71d17320750",
+    "level": 2,
+    "description": "Updated tournament description"
+  }'
+
+// or
+
+curl -X POST http://localhost:3000/chesssol/backend/update-tournament \
+  -H "Content-Type: application/json" \
+  -d '{
+    "walletAddress": "0x123...",
+    "unique_hash": "3c4e1fa3-4f45-41d0-a380-b71d17320750",
+    "level": 3,
+  }'
+
+
+```
+
+```bash
+{"status":true,"error":null,"msg":"Tournament retrieved successfully","tournament":{"tournmt_id":1,"name":"My First Cup","description":"A high-stakes chess event.","link":"https://chess-tournament.com","socials":"https://twitter.com/demo","totalPlayers":16,"wallets":{},..."addon":"none","date":"2025-05-04T16:22:52.000Z","timestamp":"2025-05-04T16:22:52.000Z"}}
+```
 
 
 
@@ -374,7 +426,7 @@ Creates a new tournament with customizable settings.
 | name | string | No | Tournament name | "Demo Tournament" |
 | description | string | No | Tournament description | "A demo tournament for testing." |
 | link | string | No | Tournament website | "https://example.com" |
-| socals | string | No | Social media link | "https://twitter.com/demo" |
+| socials | json | No | Social media link | {"twitter": "https://twitter.com/demo"} |
 | totalPlayers | number | No | Maximum players | 16 |
 | isBet | boolean | No | Whether tournament involves betting | 0 (false) |
 | configuration | object | No | Tournament rules/settings | { mode: "fast", max_rounds: 5 } |
@@ -584,7 +636,7 @@ curl https://chesssol.com/api/chesssol/backend/tournament/7d05ee6b-f555-47d0-b44
     "name": "Community Chess Cup",
     "description": "Monthly community tournament",
     "link": "https://chess-tournament.com",
-    "socals": "https://twitter.com/demo",
+    "socials": "https://twitter.com/demo",
     "totalPlayers": 16,
     "wallets": {
       "0x742d35Cc6634C0532925a3b844Bc454e4438f44e": {
@@ -600,9 +652,6 @@ curl https://chesssol.com/api/chesssol/backend/tournament/7d05ee6b-f555-47d0-b44
     "starterScore": 100,
     "scoring": {
       "0x742d35Cc6634C0532925a3b844Bc454e4438f44e": 100,
-      "win": 3,
-      "draw": 1,
-      "loss": 0
     },
     "unique_hash": "7d05ee6b-f555-47d0-b444-046b0c1965be",
     "date": "2025-05-10T00:00:00.000Z"
@@ -622,6 +671,67 @@ All endpoints return consistent error formats:
   "insertHash": null
 }
 ```
+
+
+
+## ✅ 6. Update Tournament
+
+**Endpoint:** `/update-tournament`
+
+Updates fields in an existing tournament.
+
+**Request Body:**
+
+```json
+{
+  "walletAddress": "0x123...",
+  "unique_hash": "c9097e30-2698-4e1e-8294-da40c7aecf42",
+  "level": 2,
+  "description": "Updated tournament description"
+}
+```
+
+**Curl Example:**
+
+```bash
+curl -X POST http://localhost:3000/chesssol/backend/update-tournament \
+-H "Content-Type: application/json" \
+-d '{
+  "walletAddress": "0x123...",
+  "unique_hash": "c9097e30-2698-4e1e-8294-da40c7aecf42",
+  "level": 2,
+  "description": "Updated tournament description"
+}'
+```
+
+---
+
+## ✅ 7. Generate Fixtures
+
+**Endpoint:** `/generate-fixtures`
+
+Generates game fixtures for a tournament.
+
+**Request Body:**
+
+```json
+{
+  "walletAddress": "0x123...",
+  "unique_hash": "c9097e30-2698-4e1e-8294-da40c7aecf42"
+}
+```
+
+**Curl Example:**
+
+```bash
+curl -X POST http://localhost:3000/chesssol/backend/generate-fixtures \
+-H "Content-Type: application/json" \
+-d '{
+  "walletAddress": "0x123...",
+  "unique_hash": "c9097e30-2698-4e1e-8294-da40c7aecf42"
+}'
+```
+
 
 Common error scenarios:
 - Missing required parameters

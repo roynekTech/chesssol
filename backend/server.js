@@ -59,6 +59,10 @@ app.post(MAIN_DIR+'/update-score', gameHandlers.update_score);
 app.get(MAIN_DIR+'/tournaments', gameHandlers.tournaments);
 app.get(MAIN_DIR+'/tournament/:unique_hash', gameHandlers.tournament); 
 
+app.post(MAIN_DIR+'/update-tournament', gameHandlers.update_tournament);
+app.post(MAIN_DIR+'/generate-fixtures', gameHandlers.generate_fixtures);
+
+
 
 
 
