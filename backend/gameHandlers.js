@@ -327,6 +327,8 @@ async function getGameData(req, res) {
             state: true,
             duration: latest.duration,
             game_state: latest.game_state,
+            player1: latest.player1,
+            player2: latest.player2,
             bet_status: latest.bet_status,
         });
 
