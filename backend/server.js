@@ -2733,7 +2733,7 @@ function generateNonce() {
       }
   
       case 'checkmate': {
-        // const winnerSide = game.chess.turn() === 'w' ? 'b' : 'w';
+        const winnerSide = game.chess.turn() === 'w' ? 'b' : 'w';
         // if (winner && winner !== winnerSide) {
         //   const msg = `Winner side for '${endCondition}' does not match passed value in game ${gameId}`;
         //   console.error(msg);
@@ -2746,6 +2746,7 @@ function generateNonce() {
           return { state: 0, msg };
         }
         const winnerWallet = (game.creator.side === winnerSide) ? creator : opponent;
+        // const winnerWallet = (game.creator.side === winner) ? creator : opponent;
         const payoutAmount = (amount * 0.95).toFixed(6);
         payouts.push({ to: winnerWallet, amount: payoutAmount });
         break;

@@ -1,11 +1,13 @@
 {
   "dependencies": {
+    "@lightprotocol/compressed-token": "^0.21.0",
     "@lightprotocol/stateless.js": "^0.21.0",
     "@solana/web3.js": "^1.98.2",
     "body-parser": "^2.2.0",
     "chess.js": "^1.2.0",
     "child_process": "^1.0.2",
     "cors": "^2.8.5",
+    "csv-parser": "^3.2.0",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
     "keccak256": "^1.0.6",
