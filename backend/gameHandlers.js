@@ -905,7 +905,8 @@ async function poolStats(req, res) {
       const unique_hash = body.unique_hash || uuidv4();
       const winners = JSON.stringify({});
       const payoutStatus = body.payoutStatus || 'unpaid';
-      const contact = JSON.stringify({phoneNos: body.contact} || {});
+      // const contact = JSON.stringify({phoneNos: body.contact} || {});
+      const contact = JSON.stringify({});
       const emails = JSON.stringify({});
       const addon = body.addon || 'none';
       const date = body.date ? new Date(body.date) : new Date();
