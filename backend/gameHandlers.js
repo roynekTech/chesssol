@@ -857,7 +857,7 @@ async function poolStats(req, res) {
         return res.status(400).json({
           status: 'fail',
           error: true,
-          msg: 'unique_hash and walletAddress are required',
+          msg: 'walletAddress are required',
           insertId: null,
           insertHash: null
         });
@@ -1100,7 +1100,7 @@ async function poolStats(req, res) {
   }
 } */
 
-  async function join_tournament(req, res) {
+  /* async function join_tournament(req, res) {
     try {
       const {
         unique_hash,
@@ -1229,8 +1229,138 @@ async function poolStats(req, res) {
         insertHash: null
       });
     }
-  }
+  } */
   
+
+  async function join_tournament(req, res) {
+    try {
+      let {
+        unique_hash,
+        walletAddress,
+        email,
+        contact,
+        nickname,
+        transactionSignature,
+        paymentAmount
+      } = req.body;
+  
+      if (!unique_hash || !walletAddress) {
+        return res.status(400).json({
+          status: 'fail',
+          error: true,
+          msg: 'unique_hash and walletAddress are required',
+          insertId: null,
+          insertHash: null
+        });
+      }
+  
+      // Normalize wallet address to prevent JSON path errors
+      const normalizedWallet = `_${walletAddress}`;
+  
+      // Check if wallet already exists
+      const checkQuery = `
+        SELECT 
+          configuration->>"$.entryFee" AS entryFee,
+          isBet,
+          JSON_CONTAINS_PATH(wallets, 'one', ?) AS walletExists
+        FROM tournament 
+        WHERE unique_hash = ?
+      `;
+      const walletJsonPath = `$.${normalizedWallet}`;
+      const [tournament] = await query(checkQuery, [walletJsonPath, unique_hash]);
+  
+      if (!tournament) {
+        return res.status(404).json({
+          status: 'fail',
+          error: true,
+          msg: 'Tournament not found',
+          insertId: null,
+          insertHash: unique_hash
+        });
+      }
+  
+      if (tournament.walletExists) {
+        return res.status(409).json({
+          status: 'fail',
+          error: true,
+          msg: 'Wallet already registered in this tournament',
+          insertId: null,
+          insertHash: unique_hash
+        });
+      }
+  
+      if (tournament.isBet) {
+        const requiredAmount = Number(tournament.entryFee);
+        if (!transactionSignature || typeof paymentAmount === 'undefined') {
+          return res.status(400).json({
+            status: 'fail',
+            error: true,
+            msg: 'Betting tournament requires transactionSignature and paymentAmount.',
+            insertId: null,
+            insertHash: unique_hash
+          });
+        }
+  
+        if (requiredAmount && Number(paymentAmount) !== requiredAmount) {
+          return res.status(400).json({
+            status: 'fail',
+            error: true,
+            msg: `Invalid payment amount. Required: ${requiredAmount}`,
+            insertId: null,
+            insertHash: unique_hash
+          });
+        }
+      }
+  
+      const walletInfo = {};
+      if (email) walletInfo.email = email;
+      if (contact) walletInfo.contact = contact;
+      if (nickname) walletInfo.nickname = nickname;
+  
+      const updateSQL = `
+        UPDATE tournament
+        SET 
+          wallets = JSON_SET(wallets, ?, CAST(? AS JSON)),
+          ${email ? 'emails = JSON_SET(emails, ?, ?),' : ''}
+          ${contact ? 'contact = JSON_SET(contact, ?, ?),' : ''}
+          ${transactionSignature ? 'transactions = JSON_SET(transactions, ?, ?),' : ''}
+          registeredNum = registeredNum + 1
+        WHERE unique_hash = ?
+      `;
+  
+      const updateParams = [
+        `$.${normalizedWallet}`,
+        JSON.stringify(walletInfo)
+      ];
+  
+      if (email) updateParams.push(`$.${normalizedWallet}`, email);
+      if (contact) updateParams.push(`$.${normalizedWallet}`, contact);
+      if (transactionSignature) updateParams.push(`$.${normalizedWallet}`, transactionSignature);
+  
+      updateParams.push(unique_hash);
+  
+      await query(updateSQL, updateParams);
+  
+      return res.status(200).json({
+        status: 'success',
+        error: false,
+        msg: 'Successfully joined tournament',
+        insertId: null,
+        insertHash: unique_hash
+      });
+  
+    } catch (error) {
+      console.error('Join tournament error:', error);
+      return res.status(500).json({
+        status: 'fail',
+        error: true,
+        msg: 'Internal server error',
+        insertId: null,
+        insertHash: null
+      });
+    }
+  }
+    
 //update-score
 /* async function update_score(req, res) {
   try {
@@ -1304,7 +1434,7 @@ async function poolStats(req, res) {
   }
 } */
 
-  async function update_score(req, res) {
+  /* async function update_score(req, res) {
     try {
       const { unique_hash, walletAddress, creatorWalletAddress, changeValue } = req.body;
   
@@ -1377,8 +1507,91 @@ async function poolStats(req, res) {
         insertHash: null
       });
     }
-  }
+  } */
 
+
+  async function update_score(req, res) {
+    try {
+      const { unique_hash, walletAddress, creatorWalletAddress, changeValue } = req.body;
+  
+      if (!unique_hash || !walletAddress || typeof changeValue === 'undefined') {
+        return res.status(400).json({
+          status: 'fail',
+          error: true,
+          msg: 'unique_hash, walletAddress, and changeValue are required',
+          insertId: null,
+          insertHash: null
+        });
+      }
+  
+      // Normalize walletAddress used as a JSON key
+      const normalizedWallet = `_${walletAddress}`;
+  
+      // Check that tournament exists and get creator
+      const [tournament] = await query(
+        'SELECT configuration->>"$.creator" AS creator FROM tournament WHERE unique_hash = ?', 
+        [unique_hash]
+      );
+  
+      if (!tournament) {
+        return res.status(404).json({
+          status: 'fail',
+          error: true,
+          msg: 'Tournament not found',
+          insertId: null,
+          insertHash: unique_hash
+        });
+      }
+  
+      if (tournament.creator !== creatorWalletAddress) {
+        return res.status(403).json({
+          status: 'fail',
+          error: true,
+          msg: 'Creator wallet mismatch. Only the Tournament creator can update game score',
+          insertId: null,
+          insertHash: null
+        });
+      }
+  
+      // Perform atomic score update in MySQL
+      const walletPath = `$.${normalizedWallet}`;
+  
+      await query(`
+        UPDATE tournament 
+        SET scoring = JSON_SET(
+          scoring, 
+          ?, 
+          COALESCE(JSON_UNQUOTE(JSON_EXTRACT(scoring, ?)), ?) + ?
+        ) 
+        WHERE unique_hash = ?
+      `, [
+        walletPath,
+        walletPath,
+        0, // fallback if current score doesn't exist
+        Number(changeValue),
+        unique_hash
+      ]);
+  
+      return res.status(200).json({
+        status: 'success',
+        error: false,
+        msg: `Score updated for ${walletAddress}`,
+        insertId: null,
+        insertHash: unique_hash
+      });
+  
+    } catch (error) {
+      console.error('Update score error:', error);
+      return res.status(500).json({
+        status: 'fail',
+        error: true,
+        msg: 'Internal server error',
+        insertId: null,
+        insertHash: null
+      });
+    }
+  }
+    
 
   async function update_tournament(req, res) {
     try {
@@ -1486,9 +1699,13 @@ async function tournaments (req, res) {
     status = status?.trim().toLowerCase() || 'all';
   
     try {
+
+      // name, description, link, socials, totalPlayers, wallets, transactions, status, isBet, configuration, nonce,
+      // registeredNum, changeValue, starterScore, scoring, image, type, public, game_hashes, fixtures, level,
+
       let queryStr = `
         SELECT 
-          tournmt_id, name, type, level, unique_hash, date, image, description, status 
+          tournmt_id, name, totalPlayers, isBet, registeredNum, image, type, level, unique_hash, date,  description, status 
         FROM tournament
       `;
   
@@ -1499,7 +1716,7 @@ async function tournaments (req, res) {
         params.push(status);
       }
   
-      queryStr += ' ORDER BY date DESC LIMIT 50';
+      queryStr += ' ORDER BY date DESC LIMIT 30';
   
       const results = await query(queryStr, params);
   

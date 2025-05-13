@@ -12,3 +12,4 @@ chess-engine/stockfish*
 *keypair.json
 *.pem
 test-ledger
+backend/wallet.json
