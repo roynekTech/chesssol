@@ -6,6 +6,7 @@ const { v4: uuidv4 } = require('uuid');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const axios = require('axios');
 
 function assignRandomSide() {
   return Math.random() < 0.5 ? 'w' : 'b';
@@ -754,6 +755,68 @@ async function poolStats(req, res) {
             error: error.message
         });
     }
+}
+
+
+
+
+// Cache configuration
+const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+let cache = {
+  price: null,
+  timestamp: 0,
+};
+
+// GET endpoint for Solana price
+async function getSolanaPrice(req, res) {
+  try {
+    const crypto_asset = "solana";
+    const now = Date.now();
+
+    // Return cached price if valid
+    if (cache.price && (now - cache.timestamp < CACHE_DURATION_MS)) {
+      console.log('🔁 Returning cached price');
+      return res.status(200).json({ price: cache.price, source: 'cache' });
+    }
+
+    console.log('🌐 Fetching fresh price from CoinGecko...');
+    // const response = await axios.get(
+    //   'https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usdt'
+    // );
+    const response = await axios.get(
+      `https://api.coingecko.com/api/v3/simple/price?ids=${crypto_asset}&vs_currencies=usd`
+    );
+
+    const solPrice = response.data?.solana?.usd;
+
+    if (solPrice) {
+      // Update cache
+      cache = {
+        price: solPrice,
+        timestamp: now,
+      };
+      return res.status(200).json({ price: solPrice, source: 'api' });
+    } else {
+      throw new Error('Invalid API response structure');
+    }
+  } catch (error) {
+    console.error('❌ Error:', error.message);
+
+    // Fallback to expired cache if available
+    if (cache.price) {
+      console.log('⚠️ Serving expired cached price');
+      return res.status(200).json({ 
+        price: cache.price, 
+        source: 'expired_cache',
+        warning: 'Falling back to cached data due to API error' 
+      });
+    }
+
+    return res.status(500).json({ 
+      error: 'Price unavailable',
+      details: error.message 
+    });
+  }
 }
 
 
@@ -1889,7 +1952,8 @@ module.exports = {
   viewGames,
   listGames,  //new
   poolStats,    //v new
-  create_tournament,
+  getSolanaPrice, //vv new
+  create_tournament, // vv new
   join_tournament,
   update_score,
   tournament,

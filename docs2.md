@@ -402,6 +402,21 @@ curl -X POST http://localhost:3000/chesssol/backend/update-tournament \
 ```
 
 
+#### 13. Solana Price
+```bash
+curl http://localhost:3000/chesssol/backend/solana-price
+
+
+curl "curl https://chesssol.com/api/chesssol/backend/solana-price"
+
+
+{"price":177.04,"source":"api"}
+
+
+{"price":177.04,"source":"cache"}
+
+```
+
 
 # ChessSol Tournament API Documentation
 
