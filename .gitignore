@@ -13,3 +13,4 @@ chess-engine/stockfish*
 *.pem
 test-ledger
 backend/wallet.json
+backend/wallet.json
